@@ -5,6 +5,7 @@ Real XGBoost model trained on Give Me Some Credit (150k borrowers)
 with MSME behavioral feature overlays.
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
@@ -23,8 +24,18 @@ except ImportError:
 
 import nlp_features  # unstructured-data (officer notes) → note_stress_index
 
-app = FastAPI(title="MSME Risk Intelligence API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_assets()          # load model + build portfolio on startup
+    yield
+
+
+app = FastAPI(title="MSME Risk Intelligence API", lifespan=lifespan)
 app.mount("/dashboard", StaticFiles(directory="static", html=True), name="static")
+# Model-evaluation charts (ROC/PR curves, confusion matrices, dashboards) —
+# the Model Performance module loads these from /reports.
+app.mount("/reports", StaticFiles(directory="evaluation_report"), name="reports")
 
 # ─── Global State ────────────────────────────────────────────
 xgb_model   = None
@@ -96,6 +107,47 @@ FEATURE_NARRATIVE = {
     'supplier_payment_risk':  lambda v: f"Supplier payment risk flag: {'Active — delays to creditors detected' if v > 0 else 'Clear — no creditor delays'}.",
     'note_stress_index':      lambda v: f"Officer-notes stress index (NLP): {v:.2f}/1.0 — {'alarming language in notes' if v > 0.66 else 'some concern in notes' if v > 0.4 else 'notes read healthy'}.",
 }
+
+# ─── Human-readable feature labels + value formatting (for explainability) ───
+FEATURE_LABEL = {
+    'revolving_utilization': 'Credit-Line Utilisation',
+    'debt_ratio':            'Debt-to-Income Ratio',
+    'income_stability':      'Income Stability',
+    'gst_compliance_score':  'GST Compliance',
+    'cashflow_stress_ratio': 'Cashflow Stress',
+    'working_capital_usage': 'Working-Capital Usage',
+    'revenue_trend_index':   'Revenue Trend',
+    'payment_history_score': 'Payment History',
+    'supplier_payment_risk': 'Supplier-Payment Risk',
+    'note_stress_index':     'Officer-Notes Stress (NLP)',
+    'late_30_59':            'Payments 30-59d Late',
+    'late_60_89':            'Payments 60-89d Late',
+    'late_90_days':          'Serious Delinquencies (90d+)',
+    'open_credit_lines':     'Open Credit Lines',
+    'real_estate_loans':     'Real-Estate Loans',
+    'num_dependents':        'Dependents',
+    'emi_delay_count':       'EMI Delays',
+}
+
+# How to render each feature's raw value in plain language.
+def _format_feature_value(feature: str, v: float) -> str:
+    pct_feats = {'revolving_utilization', 'working_capital_usage'}
+    score_feats = {'income_stability', 'gst_compliance_score',
+                   'payment_history_score', 'note_stress_index'}
+    if feature in pct_feats:
+        return f"{v*100:.0f}%"
+    if feature in score_feats:
+        return f"{v:.2f}/1.0"
+    if feature == 'supplier_payment_risk':
+        return "Flagged" if v > 0 else "Clear"
+    if feature in ('revenue_trend_index', 'cashflow_stress_ratio', 'debt_ratio'):
+        return f"{v:.2f}"
+    return f"{v:.2f}"
+
+
+def _sigmoid(x: float) -> float:
+    return float(1.0 / (1.0 + np.exp(-x)))
+
 
 def get_risk_band(pd_value: float) -> str:
     if pd_value < 0.20: return "Low"
@@ -359,7 +411,6 @@ def _derive_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-@app.on_event("startup")
 def load_assets():
     global xgb_model, explainer, imputer, calibrator, feature_df, FEATURES
     try:
@@ -389,6 +440,13 @@ def predict_portfolio(df: pd.DataFrame) -> np.ndarray:
         return np.clip(calibrator.predict(raw_probs), 0.0, 1.0)
     return raw_probs
 
+
+def predict_pd(features: dict) -> float:
+    """Calibrated PD for a single borrower (a {feature: value} dict).
+    Routes through the SAME XGBoost + isotonic calibration path as
+    predict_portfolio so every module reports one consistent PD."""
+    return float(predict_portfolio(pd.DataFrame([features]))[0])
+
 # ─── API Routes ───────────────────────────────────────────────
 
 @app.get("/")
@@ -401,7 +459,7 @@ def get_model_performance():
     try:
         with open('models/performance_report.json') as f:
             return json.load(f)
-    except:
+    except Exception:
         return {}
 
 @app.get("/portfolio")
@@ -478,10 +536,8 @@ def get_borrower_details(company_id: str):
         raise HTTPException(status_code=404, detail="Borrower not found")
     row = row.iloc[0]
 
-    # Predict PD
-    X = pd.DataFrame([row[FEATURES].to_dict()])
-    X_imp = imputer.transform(X)
-    current_pd = float(xgb_model.predict_proba(X_imp)[0, 1])
+    # Predict PD (calibrated — identical to /portfolio and /borrowers)
+    current_pd = predict_pd(row[FEATURES].to_dict())
 
     # Build model-derived 12-month trajectory
     # Simulate degrading monthly features and run model at each step
@@ -503,9 +559,7 @@ def get_borrower_details(company_id: str):
         monthly_feats['cashflow_stress_ratio'] = float(
             base_features['cashflow_stress_ratio'] * (0.6 + 0.6 * scale))
 
-        Xm = pd.DataFrame([monthly_feats])
-        Xm_imp = imputer.transform(Xm)
-        m_pd = float(xgb_model.predict_proba(Xm_imp)[0, 1])
+        m_pd = predict_pd(monthly_feats)  # calibrated, same path as current_pd
         timeline.append({"month": month, "pd": m_pd})
 
     # Journey events
@@ -518,7 +572,7 @@ def get_borrower_details(company_id: str):
             if key not in seen:
                 seen.add(key)
                 journey_events.append(ev)
-    except:
+    except Exception:
         pass
 
     sector  = row['sector']
@@ -548,6 +602,18 @@ def get_borrower_details(company_id: str):
         "action_ladder":   ACTION_LADDER.get(get_risk_band(current_pd), [])
     }
 
+def _portfolio_percentile(feature: str, value: float) -> float:
+    """Share of the active portfolio whose value for `feature` is below `value`
+    (0-1). Contextualises whether a borrower's reading is high or low vs peers."""
+    try:
+        col = pd.to_numeric(feature_df[feature], errors='coerce').dropna()
+        if len(col) == 0:
+            return 0.5
+        return float((col < value).mean())
+    except Exception:
+        return 0.5
+
+
 @app.get("/borrowers/{company_id}/explain")
 def get_shap_explanation(company_id: str):
     if feature_df is None or explainer is None:
@@ -559,23 +625,85 @@ def get_shap_explanation(company_id: str):
 
     X = row[FEATURES].copy()
     X_imp = imputer.transform(X)
-    shap_vals = explainer.shap_values(X_imp)
+    shap_vals = np.asarray(explainer.shap_values(X_imp))
+    if shap_vals.ndim == 3:          # some SHAP versions return (classes, rows, feats)
+        shap_vals = shap_vals[-1]
+    shap_row = shap_vals[0]
+
+    # SHAP works in log-odds (margin) space: baseline + Σ contributions = model margin.
+    base_lo       = float(np.ravel(explainer.expected_value)[-1])
+    base_prob_raw = _sigmoid(base_lo)
+    # Calibrate the baseline through the same isotonic layer so it is directly
+    # comparable to the (calibrated) PD every module shows.
+    if calibrator is not None:
+        base_prob = float(np.clip(calibrator.predict([base_prob_raw])[0], 0.0, 1.0))
+    else:
+        base_prob = base_prob_raw
+    current_pd = predict_pd(X.iloc[0].to_dict())   # calibrated PD (what every module shows)
+    band = get_risk_band(current_pd)
 
     feat_vals = X.iloc[0].to_dict()
-    drivers = sorted(
-        [
-            {
-                "feature":   f,
-                "value":     float(feat_vals[f]),
-                "impact":    float(shap_vals[0][i]),
-                "narrative": FEATURE_NARRATIVE.get(f, lambda x: f"Feature value: {x:.3f}")(float(feat_vals[f]))
-            }
-            for i, f in enumerate(FEATURES)
-        ],
-        key=lambda x: abs(x['impact']),
-        reverse=True
+    total_abs = float(sum(abs(float(s)) for s in shap_row)) or 1.0
+
+    drivers = []
+    for i, f in enumerate(FEATURES):
+        val = float(feat_vals[f])
+        impact = float(shap_row[i])
+        pct = _portfolio_percentile(f, val)
+        # Frame the percentile in the risk direction of the feature.
+        higher_is_worse = impact >= 0
+        rank_txt = (f"higher than {pct*100:.0f}% of the portfolio" if val >= 0 else "")
+        drivers.append({
+            "feature":          f,
+            "label":            FEATURE_LABEL.get(f, f.replace('_', ' ').title()),
+            "value":            val,
+            "value_display":    _format_feature_value(f, val),
+            "impact":           impact,
+            "abs_impact":       abs(impact),
+            "direction":        "increases" if impact > 0 else "decreases" if impact < 0 else "neutral",
+            "contribution_pct": round(abs(impact) / total_abs * 100, 1),
+            "percentile":       round(pct * 100),
+            "benchmark":        rank_txt,
+            "narrative":        FEATURE_NARRATIVE.get(f, lambda x: f"Value: {x:.3f}")(val),
+        })
+
+    drivers.sort(key=lambda d: d["abs_impact"], reverse=True)
+    increasing = [d for d in drivers if d["impact"] > 0]
+    reducing   = [d for d in drivers if d["impact"] < 0]
+
+    # ── Plain-English decision summary ───────────────────────────────
+    def _phrase(ds, n=3):
+        return "; ".join(f"{d['label'].lower()} ({d['value_display']})" for d in ds[:n]) or "no dominant factor"
+
+    direction_word = "well above" if current_pd > base_prob + 0.05 else \
+                     "below" if current_pd < base_prob - 0.05 else "close to"
+    summary = (
+        f"{company_id} carries a 12-month default probability of {current_pd*100:.1f}% "
+        f"({band} risk) — {direction_word} the model's portfolio baseline of {base_prob*100:.1f}%. "
+        f"The risk is pushed UP mainly by {_phrase(increasing)}. "
+        + (f"It is partially offset by stronger {_phrase(reducing)}. "
+           if reducing else "Almost no factors pull the risk down. ")
+        + f"In total, {len(increasing)} factor(s) raise risk and {len(reducing)} reduce it, "
+        f"with {(increasing[0]['label'] if increasing else drivers[0]['label'])} the single largest driver "
+        f"({(increasing[0] if increasing else drivers[0])['contribution_pct']}% of the decision)."
     )
-    return {"key_drivers": drivers[:8]}
+
+    return {
+        "company_id":   company_id,
+        "current_pd":   current_pd,
+        "risk_band":    band,
+        "baseline": {
+            "probability": base_prob,
+            "log_odds":    base_lo,
+            "label":       "Model baseline (average MSME borrower)",
+        },
+        "summary":         summary,
+        "key_drivers":     drivers,            # ALL features, ranked by |impact|
+        "risk_increasing": increasing[:5],
+        "risk_reducing":   reducing[:5],
+        "note_stress_index": float(row.iloc[0]['note_stress_index']) if 'note_stress_index' in row.columns else None,
+        "officer_notes":   str(row.iloc[0].get('officer_notes', '') or ''),
+    }
 
 # ─── Data Upload Module ──────────────────────────────────────
 
@@ -661,7 +789,7 @@ def _borrower_context(company_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Borrower not found")
     X = row[FEATURES].copy()
     X_imp = imputer.transform(X)
-    pd_val = float(xgb_model.predict_proba(X_imp)[0, 1])
+    pd_val = predict_pd(X.iloc[0].to_dict())  # calibrated — consistent with every other module
     band = get_risk_band(pd_val)
 
     drivers = []
@@ -758,24 +886,51 @@ def _copilot_context_json(ctx: dict | None, mask: bool = False) -> str:
 
 
 def _answer_template(question: str, ctx: dict | None) -> str:
+    """Offline, rule-based Copilot. Produces richer, structured explanations from
+    the SHAP-driven borrower context — used when no LLM API key is configured."""
     q = question.lower()
     if ctx is None:  # portfolio-level
         rows = _portfolio_attention()
         lines = [f"• {r['company_id']} ({r['sector']}) — PD {r['pd']*100:.1f}%, {r['band']}" for r in rows]
-        return "Borrowers requiring immediate attention (highest PD):\n" + "\n".join(lines)
+        return ("Borrowers requiring immediate attention (highest PD):\n" + "\n".join(lines)
+                + "\n\nAsk me about any borrower by opening their dossier for a full driver breakdown.")
 
-    drivers = "; ".join(d['narrative'] for d in ctx['drivers'][:3]) or "no dominant signals"
-    if "action" in q or "do" in q or "recommend" in q:
-        acts = ", ".join(ctx['actions']) or "Continue standard monitoring"
+    drv = ctx.get('drivers', [])
+    def _dir(d):  # ▲ raises / ▼ lowers, from SHAP sign
+        return "raises" if d.get('impact', 0) > 0 else "lowers"
+    bullets = "\n".join(f"  {i+1}. {d['narrative']} ({_dir(d)} risk)" for i, d in enumerate(drv[:4])) \
+              or "  • no dominant signals"
+    top_up = [d for d in drv if d.get('impact', 0) > 0][:3]
+    up_line = "; ".join(d['narrative'] for d in top_up) or "no dominant upward signals"
+
+    # ── intent routing ───────────────────────────────────────────────
+    if any(k in q for k in ("action", "recommend", "do next", "should i", "intervention")):
+        acts = "\n".join(f"  {i+1}. {a}" for i, a in enumerate(ctx.get('actions', []))) or "  1. Continue standard monitoring"
         return (f"{ctx['company_id']} is in the {ctx['band']} band (PD {ctx['pd']*100:.1f}%). "
-                f"Recommended interventions: {acts}.")
-    if "changed" in q or "trend" in q or "month" in q or "six" in q:
+                f"Recommended interventions, in priority order:\n{acts}")
+
+    if any(k in q for k in ("note", "nlp", "officer", "comment", "narrative")):
+        nsi = ctx.get('note_stress_index')
+        nsi_txt = f"{nsi:.2f}/1.0" if nsi is not None else "n/a"
+        note = ctx.get('officer_notes') or "No officer note on file."
+        return (f"Unstructured signal for {ctx['company_id']}: the NLP officer-notes stress index is {nsi_txt}. "
+                f"Latest note on file: “{note}”. This feeds the model alongside the structured features.")
+
+    if any(k in q for k in ("loss", "exposure", "ead", "lgd", "recover")):
+        return (f"Financial exposure for {ctx['company_id']}: expected loss ₹{ctx['expected_loss']:,.0f} "
+                f"= PD {ctx['pd']*100:.1f}% × EAD ₹{ctx['ead']:,.0f} × LGD {ctx['lgd']*100:.0f}%. "
+                f"Potential recovery on default ≈ ₹{ctx['ead']-ctx['expected_loss']:,.0f}.")
+
+    if any(k in q for k in ("changed", "trend", "month", "six", "trajectory", "worse")):
         return (f"Over the observation window the dominant deteriorating signals for {ctx['company_id']} are: "
-                f"{drivers}. This drove the PD to {ctx['pd']*100:.1f}% ({ctx['band']} risk).")
-    # default: why risky
-    return (f"{ctx['company_id']} ({ctx['sector']}) carries a {ctx['pd']*100:.1f}% probability of default "
-            f"({ctx['band']} band). Key drivers: {drivers}. Projected expected loss is "
-            f"₹{ctx['expected_loss']:,.0f} (PD × EAD ₹{ctx['ead']:,.0f} × LGD {ctx['lgd']*100:.0f}%).")
+                f"{up_line}. Together these drove the 12-month PD to {ctx['pd']*100:.1f}% ({ctx['band']} risk).")
+
+    # default: full "why is this borrower risky" explanation
+    return (f"{ctx['company_id']} ({ctx['sector']}) carries a {ctx['pd']*100:.1f}% 12-month probability of default "
+            f"— {ctx['band']} band. The model's ranked drivers are:\n{bullets}\n"
+            f"Projected expected loss is ₹{ctx['expected_loss']:,.0f} "
+            f"(PD × EAD ₹{ctx['ead']:,.0f} × LGD {ctx['lgd']*100:.0f}%). "
+            f"Recommended next step: {ctx['actions'][0] if ctx.get('actions') else 'continue standard monitoring'}.")
 
 
 def _answer_claude(question: str, ctx: dict | None) -> str:

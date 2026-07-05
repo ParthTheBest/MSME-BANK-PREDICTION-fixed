@@ -1,9 +1,12 @@
 {
   "tuned": {
-    "roc_auc": 1.0,
-    "raw_auc": 1.0,
-    "brier_score": 0.0,
-    "recall_at_0.5": 1.0
+    "roc_auc": 0.9267,
+    "raw_auc": 0.927,
+    "pr_auc": 0.7627,
+    "brier_score": 0.0738,
+    "accuracy_at_0.5": 0.8975,
+    "precision_at_0.5": 0.7258,
+    "recall_at_0.5": 0.6499
   },
   "features": [
     "revolving_utilization",
@@ -38,9 +41,9 @@
     "supplier_payment_risk": 1,
     "note_stress_index": 1
   },
-  "calibration": "isotonic (CalibratedClassifierCV, cv=prefit)",
+  "calibration": "isotonic (IsotonicRegression on held-out calibration split)",
   "n_train": 35000,
   "n_calibration": 7500,
   "n_test": 7500,
-  "default_rate": 0.1702
+  "default_rate": 0.1722
 }

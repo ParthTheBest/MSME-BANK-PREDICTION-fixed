@@ -33,8 +33,10 @@ jobs:
 
       - name: Check model artifacts are present
         run: |
-          for f in models/real/pipeline.joblib models/real/shap_explainer.joblib \
-                   models/real/feature_names.json models/real/performance_report.json; do
+          # The app (main.py) loads these from models/ at startup.
+          for f in models/xgb_model.joblib models/calibrator.joblib models/imputer.joblib \
+                   models/feature_list.joblib models/shap_explainer.joblib \
+                   models/performance_report.json; do
             test -f "$f" && echo "  ✓ $f" || { echo "  ✗ missing $f"; exit 1; }
           done
 

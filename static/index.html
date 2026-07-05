@@ -1083,6 +1083,41 @@ body {
 .shap-val.pos { color: var(--critical-text); }
 .shap-val.neg { color: var(--safe-text); }
 
+/* ---- Explainable-AI: plain-English summary + baseline bar ---- */
+.xai-summary {
+  font-size: 12px; line-height: 1.55; color: var(--text-secondary);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent, #6366f1);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+}
+.xai-summary b { color: var(--text-primary); font-weight: 600; }
+.xai-baseline { margin-bottom: 12px; }
+.xai-base-labels {
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; color: var(--text-tertiary); margin-bottom: 4px;
+}
+.xai-base-labels .cur { color: var(--critical-text); font-weight: 600; }
+.xai-base-track {
+  position: relative; height: 6px; border-radius: 3px;
+  background: var(--surface-3); overflow: hidden;
+}
+.xai-base-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; }
+.xai-base-fill.base { background: var(--text-tertiary); opacity: .55; }
+.xai-base-fill.cur  { background: var(--critical-text); }
+.xai-base-marker {
+  position: absolute; top: -2px; width: 2px; height: 10px;
+  background: var(--text-secondary);
+}
+.xai-group-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-tertiary); margin: 10px 0 2px; font-weight: 600;
+}
+.shap-name .shap-sub {
+  display: block; font-size: 10px; color: var(--text-tertiary);
+  font-family: 'JetBrains Mono', monospace; margin-top: 1px;
+}
+.shap-dir { font-size: 10px; margin-left: 3px; }
+
 /* Action items */
 .action-item {
   display: flex;
@@ -1363,7 +1398,7 @@ body {
         <div class="model-dot"></div>
         <div class="model-pill-text">
           <div class="model-pill-name">XGBoost + NLP</div>
-          <div class="model-pill-metric">AUC 0.969 · 32,581 rec.</div>
+          <div class="model-pill-metric" id="pill-metric">AUC — · — rec.</div>
         </div>
       </div>
     </div>
@@ -1518,7 +1553,7 @@ body {
                 <div class="perf-name">ROC-AUC</div>
               </div>
               <div class="perf-cell">
-                <div class="perf-val blue" id="m-auc">—</div>
+                <div class="perf-val blue" id="perf-cal-auc">—</div>
                 <div class="perf-name">Calibrated AUC</div>
               </div>
               <div class="perf-cell">
@@ -1673,8 +1708,8 @@ body {
         Model live — XGBoost Hybrid
       </div>
       <span id="status-time">Last inference: —</span>
-      <span>30,000 records · 16 features (14 structured + 2 NLP)</span>
-      <span>XGBoost 400 trees · ROC-AUC 1.000 · Recall 100%</span>
+      <span id="foot-data">— records · — features</span>
+      <span id="foot-model">XGBoost · ROC-AUC — · Recall —</span>
       <div class="status-bar-right">IDBI Credit Risk Intelligence Engine v2.0 · Track 04</div>
     </div>
 
@@ -1759,14 +1794,25 @@ async function loadPerf() {
     const perf = await api('/model-performance');
     const t = perf && perf.tuned;
     if (t) {
+      // Calibrated AUC is the served roc_auc (report already reflects the calibrated model);
+      // raw_auc is the pre-calibration XGBoost score.
       const auc = t.roc_auc != null ? Number(t.roc_auc).toFixed(3) : '—';
-      const calAuc = t.calibrated_auc != null ? Number(t.calibrated_auc).toFixed(3) : auc;
+      const rawAuc = t.raw_auc != null ? Number(t.raw_auc).toFixed(3) : auc;
       const recall = t['recall_at_0.5'] != null ? (Number(t['recall_at_0.5'])*100).toFixed(0)+'%' : '—';
       const brier  = t.brier_score != null ? Number(t.brier_score).toFixed(4) : '—';
-      if ($('perf-auc'))    $('perf-auc').textContent = auc;
-      if ($('m-auc'))       $('m-auc').textContent    = calAuc;
-      if ($('perf-recall')) $('perf-recall').textContent = recall;
-      if ($('perf-brier'))  $('perf-brier').textContent  = brier;
+      if ($('perf-auc'))     $('perf-auc').textContent = rawAuc;
+      if ($('m-auc'))        $('m-auc').textContent    = auc;   // "Model ROC-AUC" metric card
+      if ($('perf-cal-auc')) $('perf-cal-auc').textContent = auc;
+      if ($('perf-recall'))  $('perf-recall').textContent = recall;
+      if ($('perf-brier'))   $('perf-brier').textContent  = brier;
+      // Keep the decorative pill + footer honest and in sync with the live report.
+      const nFeat = perf.n_features != null ? perf.n_features : '—';
+      const nTot  = (perf.n_train != null && perf.n_test != null && perf.n_calibration != null)
+                    ? (perf.n_train + perf.n_test + perf.n_calibration) : null;
+      const nTotStr = nTot != null ? nTot.toLocaleString() : '—';
+      if ($('pill-metric')) $('pill-metric').textContent = `AUC ${auc} · ${nTotStr} rec.`;
+      if ($('foot-data'))   $('foot-data').textContent = `${nTotStr} records · ${nFeat} features`;
+      if ($('foot-model'))  $('foot-model').textContent = `XGBoost · ROC-AUC ${auc} · Recall ${recall}`;
     }
   } catch (_) {
     if ($('perf-auc')) $('perf-auc').textContent = '—';
@@ -1895,19 +1941,8 @@ async function loadDossier(company_id) {
   $('dos-el-ead').innerHTML = money(det.outstanding_loan);
   $('dos-el-lgd').textContent = Math.round(det.lgd_pct * 100) + '%';
 
-  // SHAP attribution
-  const drivers = (shap.key_drivers || []).slice(0, 6);
-  const maxAbs = Math.max(1e-6, ...drivers.map(d => Math.abs(d.impact)));
-  $('dos-shap').innerHTML = drivers.map((d, i) => {
-    const pos = d.impact >= 0, w = Math.round(Math.abs(d.impact) / maxAbs * 100);
-    const sign = pos ? '+' : '−';
-    return `<div class="shap-row">
-      <div class="shap-rank">${i + 1}</div>
-      <div class="shap-name" title="${esc(d.narrative || d.feature)}">${esc(prettyFeat(d.feature))}</div>
-      <div class="shap-track"><div class="shap-fill ${pos ? 'pos' : 'neg'}" style="width:${w}%"></div></div>
-      <div class="shap-val ${pos ? 'pos' : 'neg'}">${sign}${Math.abs(d.impact).toFixed(2)}</div>
-    </div>`;
-  }).join('') || '<div style="font-size:11px;color:var(--text-tertiary);padding:4px 0">No SHAP signal available.</div>';
+  // ── Explainable AI: plain-English summary + baseline bar + ranked drivers ──
+  renderShap(shap, det);
 
   // action ladder
   const prMap = { critical: 'p1', high: 'p1', medium: 'p2', routine: 'p3' };
@@ -1921,11 +1956,71 @@ async function loadDossier(company_id) {
       </div>
     </div>`).join('') || '<div style="font-size:11px;color:var(--text-tertiary)">No actions recommended.</div>';
 
-  // copilot intro
-  const top = (shap.key_drivers && shap.key_drivers[0] && shap.key_drivers[0].narrative) || 'multiple risk factors';
-  resetChat(`${det.company_id} is in the ${m.label} band with a 12-month PD of ${(det.current_pd*100).toFixed(1)}%. `
-    + `Projected expected loss is ${money(det.expected_loss)} (PD × EAD ${money(det.outstanding_loan)} × LGD ${Math.round(det.lgd_pct*100)}%). `
-    + `Primary driver: ${top} Ask me anything about this borrower.`);
+  // copilot intro — lead with the model's plain-English explanation
+  const intro = shap.summary
+    ? `${shap.summary} Projected expected loss is ${money(det.expected_loss)} (PD × EAD ${money(det.outstanding_loan)} × LGD ${Math.round(det.lgd_pct*100)}%). Ask me anything about this borrower.`
+    : `${det.company_id} is in the ${m.label} band with a 12-month PD of ${(det.current_pd*100).toFixed(1)}%. Ask me anything about this borrower.`;
+  resetChat(intro);
+}
+
+/* ---------- Explainable-AI renderer (SHAP → plain English) ---------- */
+function renderShap(shap, det) {
+  const el = $('dos-shap');
+  const drivers = shap.key_drivers || [];
+  if (!drivers.length) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:4px 0">No SHAP signal available.</div>';
+    return;
+  }
+  const basePct = shap.baseline ? (shap.baseline.probability * 100) : null;
+  const curPct  = (shap.current_pd != null ? shap.current_pd : det.current_pd) * 100;
+
+  // 1) plain-English summary
+  let html = shap.summary ? `<div class="xai-summary">${esc(shap.summary)}</div>` : '';
+
+  // 2) baseline → this-borrower bar (how far from the average MSME)
+  if (basePct != null) {
+    const b = Math.max(0, Math.min(100, basePct)), c = Math.max(0, Math.min(100, curPct));
+    html += `<div class="xai-baseline">
+      <div class="xai-base-labels">
+        <span>Model baseline ${b.toFixed(1)}%</span>
+        <span class="cur">This borrower ${c.toFixed(1)}%</span>
+      </div>
+      <div class="xai-base-track">
+        <div class="xai-base-fill cur"  style="width:${c}%"></div>
+        <div class="xai-base-fill base" style="width:${b}%"></div>
+        <div class="xai-base-marker" style="left:${b}%"></div>
+      </div>
+    </div>`;
+  }
+
+  // 3) ranked driver rows — direction, plain value, % of decision
+  const maxAbs = Math.max(1e-6, ...drivers.map(d => Math.abs(d.impact)));
+  const shown = drivers.slice(0, 8);
+  const row = d => {
+    const pos = d.impact >= 0, w = Math.round(Math.abs(d.impact) / maxAbs * 100);
+    const sign = pos ? '+' : '−';
+    const arrow = pos ? '▲' : '▼';
+    const sub = `${esc(d.value_display || (+d.value).toFixed(2))} · ${d.contribution_pct}% of decision`;
+    const tip = `${esc(d.narrative || '')}${d.benchmark ? '  ('+esc(d.benchmark)+')' : ''}`;
+    return `<div class="shap-row" title="${tip}">
+      <div class="shap-rank">${drivers.indexOf(d) + 1}</div>
+      <div class="shap-name">${esc(d.label || prettyFeat(d.feature))}
+        <span class="shap-dir ${pos?'':'neg'}" style="color:${pos?'var(--critical-text)':'var(--safe-text)'}">${arrow} ${pos?'raises':'lowers'}</span>
+        <span class="shap-sub">${sub}</span>
+      </div>
+      <div class="shap-track"><div class="shap-fill ${pos ? 'pos' : 'neg'}" style="width:${w}%"></div></div>
+      <div class="shap-val ${pos ? 'pos' : 'neg'}">${sign}${Math.abs(d.impact).toFixed(2)}</div>
+    </div>`;
+  };
+  html += shown.map(row).join('');
+
+  // 4) legend
+  html += `<div style="font-size:10px;color:var(--text-tertiary);margin-top:8px;line-height:1.5">
+    Values are SHAP log-odds contributions from the XGBoost model.
+    <span style="color:var(--critical-text)">▲ red</span> pushes default risk up,
+    <span style="color:var(--safe-text)">▼ green</span> pulls it down. Hover a row for the full read + portfolio benchmark.</div>`;
+
+  el.innerHTML = html;
 }
 
 function prettyFeat(f) {

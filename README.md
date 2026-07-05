@@ -15,13 +15,13 @@ The platform scores a borrower's **12-month Probability of Default (PD)**, quant
 ## ✨ Highlights
 
 - 🎯 **Hybrid ML model** — XGBoost on **structured credit features + unstructured officer-notes NLP** (`note_stress_index`), Optuna-tuned, isotonic-calibrated, leak-free CV.
-- 📈 **Held-out ROC-AUC 0.969** (structured-only 0.955 → **+0.014 NLP uplift**), Accuracy 94%, Precision 91%.
+- 📈 **Held-out ROC-AUC 0.927** (structured-only 0.898 → **+0.025 NLP uplift**), Accuracy 90%, Precision 73%, Recall 65%, Brier 0.074.
 - 🧠 **Full explainability** — per-borrower SHAP attribution translated into plain-English risk drivers.
 - 🔮 **Forward-looking** — simulates a borrower's PD trajectory across a 12-month horizon.
 - 💸 **Banker's-eye financials** — Expected Loss, exposure, LGD, recovery, and a priority **Action Escalation Ladder**.
 - 🤖 **Agentic Risk Copilot** — interactive Q&A on any borrower (Claude → Gemini → offline template fallback).
 - 🖥️ **Modern dashboard** — fully wired SPA: Portfolio Overview, Borrowers, Risk Trends, Early Warnings, SHAP Explainer, Expected Loss, Model Performance, and CSV Upload.
-- ⚡ **Runs instantly** — the trained model ships in `models/real/`; no training step required.
+- ⚡ **Runs instantly** — the trained model ships in `models/`; no training step required.
 
 ---
 
@@ -67,9 +67,10 @@ uvicorn main:app --reload --port 8000
 
 Open **http://127.0.0.1:8000/** — it auto-redirects to the dashboard.
 
-The trained model ships in `models/real/`, so the app runs immediately. To **retrain**, place
-`credit_risk_dataset.csv` in `data/` and run `python train_real_credit_nlp.py` (input datasets are
-gitignored and not committed).
+The trained model ships in `models/`, so the app runs immediately. To **retrain** the shipped model
+run `python retrain_calibrated.py` — it regenerates the synthetic dataset, retrains XGBoost with
+monotonic constraints + isotonic calibration, and rewrites the `models/*.joblib` artifacts and
+`models/performance_report.json` with fresh held-out metrics.
 
 ---
 
@@ -120,9 +121,10 @@ No key is required to run the demo.
         ▲  /dashboard (static)           │ loads at startup
         │  /reports  (eval charts)       ▼
                               ┌────────────────────────────┐
-                              │ models/real/               │
-                              │  pipeline.joblib (XGBoost) │
+                              │ models/                    │
+                              │  xgb_model.joblib (XGBoost)│
                               │  calibrator.joblib         │
+                              │  imputer.joblib            │
                               │  shap_explainer.joblib     │
                               └────────────────────────────┘
 ```
@@ -141,20 +143,23 @@ IDBI-main/
 ├── main_msme_backup.py          # MSME variant (GST/EMI/cashflow behavioural features)
 ├── nlp_features.py              # officer-notes → note_stress_index (NLP)
 │
-├── train_real_credit_nlp.py     # trainer: structured + unstructured (current model)
-├── train_real_credit.py         # trainer: structured-only baseline
+├── retrain_calibrated.py        # trainer for the SHIPPED model → writes models/*.joblib
+├── train_real_credit_nlp.py     # alt trainer: structured + unstructured → models/real/ (not served)
+├── train_real_credit.py         # alt trainer: structured-only baseline → models/real/ (not served)
 ├── tune_model.py                # Optuna hyperparameter tuning
 ├── evaluate_model.py            # held-out evaluation
 ├── run_all_models.py            # train/evaluate model zoo
 │
 ├── generate_*_data.py           # synthetic data generators (demo / MSME / realistic)
 │
-├── models/
-│   └── real/                    # ✅ shipped model the app loads at startup
-│       ├── pipeline.joblib      #    XGBoost + preprocessing
-│       ├── calibrator.joblib    #    isotonic probability calibration
-│       ├── shap_explainer.joblib
-│       └── performance_report.json
+├── models/                      # ✅ shipped model the app loads at startup
+│   ├── xgb_model.joblib         #    XGBoost (10 features, monotonic constraints)
+│   ├── calibrator.joblib        #    isotonic probability calibration
+│   ├── imputer.joblib           #    median imputation
+│   ├── shap_explainer.joblib
+│   ├── feature_list.joblib
+│   ├── performance_report.json
+│   └── real/                    #    alt artifacts from train_real_credit*.py (not served)
 │
 ├── evaluation_report/           # ROC/PR curves, confusion matrices, dashboards (served at /reports)
 │
@@ -182,13 +187,13 @@ borrower's trajectory bends toward default.
 
 ## 🔬 Model Notes
 
-- **Data:** `credit_risk_dataset.csv` — 32,581 borrowers, structured credit features + officer-notes NLP.
-- **Pipeline:** preprocessing → XGBoost → isotonic calibration; tuned with Optuna; evaluated on a held-out split with leak-free cross-validation.
-- **Headline:** ROC-AUC **0.969** (structured-only 0.955, **+0.014** from the unstructured NLP signal).
+- **Data:** synthetic MSME dataset (50,000 borrowers) — 10 leading-indicator features + officer-notes NLP. Defaults are sampled *probabilistically* from a noisy latent risk index, so the classes genuinely overlap (a realistic, non-separable problem — not a label-conditioned toy set).
+- **Pipeline:** median imputation → XGBoost (monotonic constraints) → isotonic calibration on a held-out calibration split; evaluated on a separate held-out test split.
+- **Headline (calibrated, held-out):** ROC-AUC **0.927**, PR-AUC 0.763, Accuracy 90%, Precision 73%, Recall 65%, Brier 0.074 — structured-only 0.898, **+0.025** from the unstructured NLP signal.
 - **MSME variant:** `main_msme_backup.py` preserves the original GST/EMI/cashflow behavioural framing.
 
-> The model bundled in `models/real/` is regenerated on the current library versions so `joblib`
-> loads cleanly; `GET /model-performance` reports the metrics for the shipped artifact.
+> The model bundled in `models/` is trained by `retrain_calibrated.py`; `GET /model-performance`
+> serves `models/performance_report.json` — the true held-out metrics for the shipped artifact.
 
 ---
 

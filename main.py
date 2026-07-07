@@ -297,6 +297,30 @@ def generate_new_loans(count: int) -> pd.DataFrame:
 #   per company and derived into the behavioural feature space.
 DEFAULT_SECTOR = 'Retail'
 
+def clean_numeric_series(s: pd.Series) -> pd.Series:
+    """Clean string currency formats, commas, percentages, and parse safely as floats."""
+    if s is None or len(s) == 0:
+        return pd.Series(dtype=float)
+    
+    # Convert to string and clean
+    s_str = s.astype(str).str.strip()
+    
+    # Strip currency symbols, commas, spaces
+    s_cleaned = s_str.str.replace(r'[\$\u20B9\u20A8\s,]', '', regex=True)
+    
+    # Detect percentage formatting
+    pct_mask = s_cleaned.str.endswith('%', na=False)
+    s_cleaned = s_cleaned.str.rstrip('%')
+    
+    # Safely convert to numeric float
+    numeric_s = pd.to_numeric(s_cleaned, errors='coerce')
+    
+    # Standardize percent values (e.g. 45% -> 0.45)
+    if pct_mask.any():
+        numeric_s = numeric_s.mask(pct_mask, numeric_s / 100.0)
+        
+    return numeric_s
+
 def map_upload_to_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.columns = [c.strip() for c in df.columns]
@@ -312,8 +336,28 @@ def map_upload_to_portfolio(df: pd.DataFrame) -> pd.DataFrame:
         df['sector'] = DEFAULT_SECTOR
     if 'loan_type' not in df.columns:
         df['loan_type'] = 'Term Loan'
-    if 'outstanding_loan' not in df.columns:
+        
+    # Sanitize outstanding loan
+    if 'outstanding_loan' in df.columns:
+        df['outstanding_loan'] = clean_numeric_series(df['outstanding_loan']).fillna(1_000_000.0).clip(0.0, 1e12)
+    else:
         df['outstanding_loan'] = 1_000_000.0
+
+    # Sanitize and bound features that are already present in df
+    for f in FEATURES:
+        if f in df.columns:
+            df[f] = clean_numeric_series(df[f])
+            # Apply domain-specific clips to prevent overflow or negative bypass:
+            if f in ('revolving_utilization', 'working_capital_usage', 'income_stability', 'gst_compliance_score', 'payment_history_score'):
+                df[f] = df[f].clip(0.0, 1.0)
+            elif f == 'debt_ratio':
+                df[f] = df[f].clip(0.0, 100.0)
+            elif f == 'cashflow_stress_ratio':
+                df[f] = df[f].clip(0.0, 10.0)
+            elif f == 'revenue_trend_index':
+                df[f] = df[f].clip(0.0, 10.0)
+            elif f == 'supplier_payment_risk':
+                df[f] = df[f].clip(0.0, 1.0)
 
     # If the file already carries the model features, keep them; otherwise derive.
     have = set(df.columns)
@@ -328,11 +372,21 @@ def map_upload_to_portfolio(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df['note_stress_index'] = 0.5
 
-    # Final guarantee: every model feature exists and is numeric
+    # Final guarantee: every model feature exists, is numeric, and bounds are enforced
     for f in FEATURES:
         if f not in df.columns:
-            df[f] = 0.0
+            df[f] = np.nan
         df[f] = pd.to_numeric(df[f], errors='coerce')
+        if f in ('revolving_utilization', 'working_capital_usage', 'income_stability', 'gst_compliance_score', 'payment_history_score'):
+            df[f] = df[f].clip(0.0, 1.0)
+        elif f == 'debt_ratio':
+            df[f] = df[f].clip(0.0, 100.0)
+        elif f == 'cashflow_stress_ratio':
+            df[f] = df[f].clip(0.0, 10.0)
+        elif f == 'revenue_trend_index':
+            df[f] = df[f].clip(0.0, 10.0)
+        elif f == 'supplier_payment_risk':
+            df[f] = df[f].clip(0.0, 1.0)
 
     if 'journey_events' not in df.columns:
         df['journey_events'] = '[]'
@@ -372,12 +426,13 @@ def _derive_features(df: pd.DataFrame) -> pd.DataFrame:
     """Map blueprint MSME columns → the 16 model features (mirrors training overlay)."""
     n = len(df)
     g = df.get
+    out = df.copy()
 
+    # Pre-calculate base indicators if we need them for missing values
     util = pd.to_numeric(g('credit_utilization', pd.Series([0.4] * n)), errors='coerce').fillna(0.4)
     wc   = pd.to_numeric(g('working_capital_usage', pd.Series([0.5] * n)), errors='coerce').fillna(0.5)
     emi  = pd.to_numeric(g('emi_delay_count', pd.Series([0] * n)), errors='coerce').fillna(0)
 
-    # Cashflow / debt proxies
     if {'monthly_inflow', 'monthly_outflow'}.issubset(df.columns):
         inflow  = pd.to_numeric(df['monthly_inflow'], errors='coerce').replace(0, np.nan)
         outflow = pd.to_numeric(df['monthly_outflow'], errors='coerce')
@@ -385,29 +440,74 @@ def _derive_features(df: pd.DataFrame) -> pd.DataFrame:
     else:
         debt = pd.Series(np.clip(util * 1.2, 0.01, 3.0), index=df.index)
 
-    out = df.copy()
-    out['revolving_utilization'] = np.clip(util, 0.01, 0.99)
-    out['debt_ratio']            = debt
-    out['late_30_59']            = np.clip(emi, 0, 12).astype(int)
-    out['late_60_89']            = np.clip(emi - 1, 0, 12).astype(int)
-    out['late_90_days']          = np.clip(emi - 2, 0, 12).astype(int)
-    out['open_credit_lines']     = pd.to_numeric(g('open_credit_lines', pd.Series([8] * n)), errors='coerce').fillna(8)
-    out['real_estate_loans']     = pd.to_numeric(g('real_estate_loans', pd.Series([1] * n)), errors='coerce').fillna(1)
-    out['num_dependents']        = pd.to_numeric(g('num_dependents', pd.Series([1] * n)), errors='coerce').fillna(1)
-    if 'account_balance' in df.columns:
-        bal = pd.to_numeric(df['account_balance'], errors='coerce').fillna(0)
-        out['income_stability'] = np.clip(bal / 500000, 0.0, 1.0)
-    else:
-        out['income_stability'] = 0.5
-    out['gst_compliance_score']  = np.clip(1 - emi * 0.12, 0.0, 1.0)
-    out['emi_delay_count']       = np.clip(emi, 0, 12).astype(int)
-    if 'cashflow_stress_ratio' not in out.columns:
+    # 1. revolving_utilization
+    if 'revolving_utilization' not in out.columns or out['revolving_utilization'].isna().all():
+        out['revolving_utilization'] = np.clip(util, 0.01, 0.99)
+
+    # 2. debt_ratio
+    if 'debt_ratio' not in out.columns or out['debt_ratio'].isna().all():
+        out['debt_ratio'] = debt
+
+    # 3. late_30_59
+    if 'late_30_59' not in out.columns or out['late_30_59'].isna().all():
+        out['late_30_59'] = np.clip(emi, 0, 12).astype(int)
+
+    # 4. late_60_89
+    if 'late_60_89' not in out.columns or out['late_60_89'].isna().all():
+        out['late_60_89'] = np.clip(emi - 1, 0, 12).astype(int)
+
+    # 5. late_90_days
+    if 'late_90_days' not in out.columns or out['late_90_days'].isna().all():
+        out['late_90_days'] = np.clip(emi - 2, 0, 12).astype(int)
+
+    # 6. open_credit_lines
+    if 'open_credit_lines' not in out.columns or out['open_credit_lines'].isna().all():
+        out['open_credit_lines'] = pd.to_numeric(g('open_credit_lines', pd.Series([8] * n)), errors='coerce').fillna(8)
+
+    # 7. real_estate_loans
+    if 'real_estate_loans' not in out.columns or out['real_estate_loans'].isna().all():
+        out['real_estate_loans'] = pd.to_numeric(g('real_estate_loans', pd.Series([1] * n)), errors='coerce').fillna(1)
+
+    # 8. num_dependents
+    if 'num_dependents' not in out.columns or out['num_dependents'].isna().all():
+        out['num_dependents'] = pd.to_numeric(g('num_dependents', pd.Series([1] * n)), errors='coerce').fillna(1)
+
+    # 9. income_stability
+    if 'income_stability' not in out.columns or out['income_stability'].isna().all():
+        if 'account_balance' in df.columns:
+            bal = pd.to_numeric(df['account_balance'], errors='coerce').fillna(0)
+            out['income_stability'] = np.clip(bal / 500000, 0.0, 1.0)
+        else:
+            out['income_stability'] = 0.5
+
+    # 10. gst_compliance_score
+    if 'gst_compliance_score' not in out.columns or out['gst_compliance_score'].isna().all():
+        out['gst_compliance_score'] = np.clip(1 - emi * 0.12, 0.0, 1.0)
+
+    # 11. emi_delay_count
+    if 'emi_delay_count' not in out.columns or out['emi_delay_count'].isna().all():
+        out['emi_delay_count'] = np.clip(emi, 0, 12).astype(int)
+
+    # 12. cashflow_stress_ratio
+    if 'cashflow_stress_ratio' not in out.columns or out['cashflow_stress_ratio'].isna().all():
         out['cashflow_stress_ratio'] = np.clip(debt * 1.0, 0, 5)
-    out['working_capital_usage'] = np.clip(wc, 0.0, 1.0)
-    if 'revenue_trend_index' not in out.columns:
+
+    # 13. working_capital_usage
+    if 'working_capital_usage' not in out.columns or out['working_capital_usage'].isna().all():
+        out['working_capital_usage'] = np.clip(wc, 0.0, 1.0)
+
+    # 14. revenue_trend_index
+    if 'revenue_trend_index' not in out.columns or out['revenue_trend_index'].isna().all():
         out['revenue_trend_index'] = np.clip(1.2 - debt * 0.4, 0.2, 2.0)
-    out['payment_history_score'] = np.clip(1 - emi * 0.08, 0.0, 1.0)
-    out['supplier_payment_risk'] = (emi > 2).astype(float)
+
+    # 15. payment_history_score
+    if 'payment_history_score' not in out.columns or out['payment_history_score'].isna().all():
+        out['payment_history_score'] = np.clip(1 - emi * 0.08, 0.0, 1.0)
+
+    # 16. supplier_payment_risk
+    if 'supplier_payment_risk' not in out.columns or out['supplier_payment_risk'].isna().all():
+        out['supplier_payment_risk'] = (emi > 2).astype(float)
+
     return out
 
 
@@ -445,7 +545,12 @@ def predict_pd(features: dict) -> float:
     """Calibrated PD for a single borrower (a {feature: value} dict).
     Routes through the SAME XGBoost + isotonic calibration path as
     predict_portfolio so every module reports one consistent PD."""
-    return float(predict_portfolio(pd.DataFrame([features]))[0])
+    df = pd.DataFrame([features])
+    # Align columns to FEATURES list. Missing features will be NaN (gracefully handled by simple imputer)
+    for f in FEATURES:
+        if f not in df.columns:
+            df[f] = np.nan
+    return float(predict_portfolio(df)[0])
 
 # ─── API Routes ───────────────────────────────────────────────
 

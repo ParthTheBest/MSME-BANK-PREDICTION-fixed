@@ -1,0 +1,564 @@
+{
+  "nlp_backend": "Lexicon Keyword Matcher (Graceful Fallback)",
+  "nlp_bias_results": {
+    "Gender": {
+      "Healthy (Low Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Operations are stable, and sales are growing. The ...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Female-Owned (Direct)",
+          "note_preview": "The business is female-owned and run by a female e...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Male-Owned (Direct)",
+          "note_preview": "The business is male-owned and run by a male entre...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Woman-Led (Direct)",
+          "note_preview": "This is a woman-led enterprise. Operations are sta...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Man-Led (Direct)",
+          "note_preview": "This is a man-led enterprise. Operations are stabl...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Proprietress (Gendered Title)",
+          "note_preview": "The proprietress is seeking credit enhancement. Op...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Proprietor (Gendered Title)",
+          "note_preview": "The proprietor is seeking credit enhancement. Oper...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        }
+      ],
+      "Stable (Medium Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Minor cashflow pressure detected, with some delays...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Female-Owned (Direct)",
+          "note_preview": "The business is female-owned and run by a female e...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Male-Owned (Direct)",
+          "note_preview": "The business is male-owned and run by a male entre...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Woman-Led (Direct)",
+          "note_preview": "This is a woman-led enterprise. Minor cashflow pre...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Man-Led (Direct)",
+          "note_preview": "This is a man-led enterprise. Minor cashflow press...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Proprietress (Gendered Title)",
+          "note_preview": "The proprietress is seeking credit enhancement. Mi...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Proprietor (Gendered Title)",
+          "note_preview": "The proprietor is seeking credit enhancement. Mino...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        }
+      ],
+      "Stressed (High Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Severe cashflow pressure this quarter; EMI repeate...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Female-Owned (Direct)",
+          "note_preview": "The business is female-owned and run by a female e...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Male-Owned (Direct)",
+          "note_preview": "The business is male-owned and run by a male entre...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Woman-Led (Direct)",
+          "note_preview": "This is a woman-led enterprise. Severe cashflow pr...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Man-Led (Direct)",
+          "note_preview": "This is a man-led enterprise. Severe cashflow pres...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Proprietress (Gendered Title)",
+          "note_preview": "The proprietress is seeking credit enhancement. Se...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Proprietor (Gendered Title)",
+          "note_preview": "The proprietor is seeking credit enhancement. Seve...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        }
+      ]
+    },
+    "Region": {
+      "Healthy (Low Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Operations are stable, and sales are growing. The ...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Southern Region",
+          "note_preview": "The business is located in the Southern region (Ch...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Northern Region",
+          "note_preview": "The business is located in the Northern region (De...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Western Region",
+          "note_preview": "The business is located in the Western region (Mum...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Eastern Region",
+          "note_preview": "The business is located in the Eastern region (Kol...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "North-East Region",
+          "note_preview": "The business is located in the North-East region (...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Rural Area",
+          "note_preview": "The business is located in a remote rural area. Op...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Urban Metro",
+          "note_preview": "The business is located in an urban metro center. ...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        }
+      ],
+      "Stable (Medium Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Minor cashflow pressure detected, with some delays...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Southern Region",
+          "note_preview": "The business is located in the Southern region (Ch...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Northern Region",
+          "note_preview": "The business is located in the Northern region (De...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Western Region",
+          "note_preview": "The business is located in the Western region (Mum...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Eastern Region",
+          "note_preview": "The business is located in the Eastern region (Kol...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "North-East Region",
+          "note_preview": "The business is located in the North-East region (...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Rural Area",
+          "note_preview": "The business is located in a remote rural area. Mi...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Urban Metro",
+          "note_preview": "The business is located in an urban metro center. ...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        }
+      ],
+      "Stressed (High Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Severe cashflow pressure this quarter; EMI repeate...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Southern Region",
+          "note_preview": "The business is located in the Southern region (Ch...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Northern Region",
+          "note_preview": "The business is located in the Northern region (De...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Western Region",
+          "note_preview": "The business is located in the Western region (Mum...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Eastern Region",
+          "note_preview": "The business is located in the Eastern region (Kol...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "North-East Region",
+          "note_preview": "The business is located in the North-East region (...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Rural Area",
+          "note_preview": "The business is located in a remote rural area. Se...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Urban Metro",
+          "note_preview": "The business is located in an urban metro center. ...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        }
+      ]
+    },
+    "Industry Sector": {
+      "Healthy (Low Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Operations are stable, and sales are growing. The ...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Retail Sector",
+          "note_preview": "This is a retail sector business. Operations are s...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Manufacturing Sector",
+          "note_preview": "This is a manufacturing sector enterprise. Operati...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Construction Sector",
+          "note_preview": "This is a construction sector company. Operations ...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Technology Sector",
+          "note_preview": "This is a technology sector startup. Operations ar...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Agriculture Sector",
+          "note_preview": "This is a rural agriculture sector business. Opera...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Textile Sector",
+          "note_preview": "This is a textile sector firm. Operations are stab...",
+          "stress_index": 0.063,
+          "predicted_pd": 0.0035,
+          "risk_band": "Low"
+        }
+      ],
+      "Stable (Medium Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Minor cashflow pressure detected, with some delays...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Retail Sector",
+          "note_preview": "This is a retail sector business. Minor cashflow p...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Manufacturing Sector",
+          "note_preview": "This is a manufacturing sector enterprise. Minor c...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Construction Sector",
+          "note_preview": "This is a construction sector company. Minor cashf...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Technology Sector",
+          "note_preview": "This is a technology sector startup. Minor cashflo...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Agriculture Sector",
+          "note_preview": "This is a rural agriculture sector business. Minor...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Textile Sector",
+          "note_preview": "This is a textile sector firm. Minor cashflow pres...",
+          "stress_index": 0.7109,
+          "predicted_pd": 0.0769,
+          "risk_band": "Low"
+        }
+      ],
+      "Stressed (High Risk)": [
+        {
+          "variant": "Neutral (Baseline)",
+          "note_preview": "Severe cashflow pressure this quarter; EMI repeate...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Retail Sector",
+          "note_preview": "This is a retail sector business. Severe cashflow ...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Manufacturing Sector",
+          "note_preview": "This is a manufacturing sector enterprise. Severe ...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Construction Sector",
+          "note_preview": "This is a construction sector company. Severe cash...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Technology Sector",
+          "note_preview": "This is a technology sector startup. Severe cashfl...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Agriculture Sector",
+          "note_preview": "This is a rural agriculture sector business. Sever...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        },
+        {
+          "variant": "Textile Sector",
+          "note_preview": "This is a textile sector firm. Severe cashflow pre...",
+          "stress_index": 0.937,
+          "predicted_pd": 0.1206,
+          "risk_band": "Low"
+        }
+      ]
+    }
+  },
+  "sector_audit": [
+    {
+      "sector": "Retail",
+      "lgd_pct": 0.35,
+      "expected_loss": 35000.0,
+      "potential_recovery": 965000.0
+    },
+    {
+      "sector": "Manufacturing",
+      "lgd_pct": 0.45,
+      "expected_loss": 45000.0,
+      "potential_recovery": 955000.0
+    },
+    {
+      "sector": "Construction",
+      "lgd_pct": 0.55,
+      "expected_loss": 55000.00000000001,
+      "potential_recovery": 945000.0
+    },
+    {
+      "sector": "Technology",
+      "lgd_pct": 0.3,
+      "expected_loss": 30000.0,
+      "potential_recovery": 970000.0
+    },
+    {
+      "sector": "Agriculture",
+      "lgd_pct": 0.4,
+      "expected_loss": 40000.0,
+      "potential_recovery": 960000.0
+    },
+    {
+      "sector": "Textile",
+      "lgd_pct": 0.42,
+      "expected_loss": 42000.0,
+      "potential_recovery": 958000.0
+    }
+  ],
+  "has_direct_bias_features": true,
+  "direct_bias_features": [
+    "working_capital_usage"
+  ],
+  "boundary_robustness_results": {
+    "nan_predict_pd": {
+      "status": "ok",
+      "pd": 0.014084506779909134,
+      "risk_band": "Low"
+    },
+    "nan_predict_portfolio": {
+      "status": "ok",
+      "pd": 0.014084506779909134
+    },
+    "incomplete_predict_pd": {
+      "status": "ok",
+      "pd": 0.0023980815894901752
+    },
+    "incomplete_upload": {
+      "status": "ok",
+      "pd": 0.00826446246355772
+    },
+    "contradictory_1": {
+      "pd": 0.3103448152542114,
+      "risk_band": "Medium"
+    },
+    "contradictory_2": {
+      "pd": 0.0023980815894901752,
+      "risk_band": "Low"
+    },
+    "extra_columns": {
+      "status": "ok",
+      "pd": 0.014084506779909134
+    }
+  }
+}

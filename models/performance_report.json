@@ -1,12 +1,12 @@
 {
   "tuned": {
-    "roc_auc": 0.9267,
-    "raw_auc": 0.927,
-    "pr_auc": 0.7627,
-    "brier_score": 0.0738,
-    "accuracy_at_0.5": 0.8975,
-    "precision_at_0.5": 0.7258,
-    "recall_at_0.5": 0.6499
+    "roc_auc": 0.9268,
+    "raw_auc": 0.9272,
+    "pr_auc": 0.7638,
+    "brier_score": 0.0736,
+    "accuracy_at_0.5": 0.8987,
+    "precision_at_0.5": 0.7364,
+    "recall_at_0.5": 0.6406
   },
   "features": [
     "revolving_utilization",

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: msme-bank-prediction
+    env: python
+    buildCommand: "pip install -r requirements.txt && python retrain_calibrated.py"
+    startCommand: "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT"
+    plan: free
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: "gemini-2.5-flash"
+      - key: PYTHON_VERSION
+        value: "3.11.0"

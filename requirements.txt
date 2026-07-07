@@ -25,3 +25,8 @@ google-genai             # Gemini engine (alternative to Claude)
 
 # --- config ---
 python-dotenv             # loads ANTHROPIC_API_KEY from .env
+
+# --- Production / Auditing ---
+gunicorn                  # WSGI HTTP Server for production deployment
+reportlab                 # PDF Generation for verification logs
+

@@ -1,0 +1,39 @@
+# Vercel build exclusions - reduce deployment size
+
+# Development
+.git
+.gitignore
+.venv
+venv/
+env/
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
+
+# Data
+data/
+*.csv
+*.xlsx
+
+# Documentation (optional - keep if needed)
+# README.md
+# docs/
+
+# OS
+.DS_Store
+.env
+
+# Logs
+*.log
+*.output
+
+# Development tools
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Old models (keep only latest in models/)
+models/legacy/
+
+# Test files (optional)
+# test*.py

@@ -1,0 +1,29 @@
+# MSME Bank Prediction — Minimal Production Dependencies for Vercel
+# Use this for faster deployment (no training/NLP packages)
+
+# --- API / serving ---
+fastapi
+uvicorn
+python-multipart
+mangum                    # Vercel serverless adapter
+
+# --- ML core (pre-trained models only) ---
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+
+# --- Model explainability (optional, but keep if available space) ---
+# shap                    # Heavy dependency with llvmlite — optional
+
+# --- LLM engines (optional) ---
+anthropic                 # Claude API
+google-genai             # Gemini API
+
+# --- config ---
+python-dotenv
+
+# --- Production ---
+gunicorn
+reportlab

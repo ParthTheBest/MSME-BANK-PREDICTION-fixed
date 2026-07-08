@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "buildCommand": "pip install -r requirements-vercel.txt",
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "main.py" }
+  ],
+  "env": {
+    "PYTHON_VERSION": "3.9"
+  }
+}
+

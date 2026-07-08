@@ -22,7 +22,10 @@ try:
 except ImportError:
     pass
 
-import nlp_features  # unstructured-data (officer notes) → note_stress_index
+try:
+    import nlp_features  # unstructured-data (officer notes) → note_stress_index
+except ImportError:
+    nlp_features = None  # NLP features optional (requires sentence-transformers)
 
 
 @asynccontextmanager
@@ -267,7 +270,10 @@ def build_portfolio() -> pd.DataFrame:
     rng = np.random.RandomState(2024)
     rows = [_make_borrower_row(f"MSME-{i+1:04d}", rng) for i in range(200)]
     df = pd.DataFrame(rows)
-    df['note_stress_index'] = nlp_features.stress_index(df['officer_notes'])
+    if nlp_features is not None:
+        df['note_stress_index'] = nlp_features.stress_index(df['officer_notes'])
+    else:
+        df['note_stress_index'] = 0.0  # Default if NLP unavailable
     return df
 
 
@@ -283,7 +289,10 @@ def generate_new_loans(count: int) -> pd.DataFrame:
         _new_loan_seq += 1
         rows.append(_make_borrower_row(f"MSME-N{_new_loan_seq:04d}", rng, year=2025))
     df = pd.DataFrame(rows)
-    df['note_stress_index'] = nlp_features.stress_index(df['officer_notes'])
+    if nlp_features is not None:
+        df['note_stress_index'] = nlp_features.stress_index(df['officer_notes'])
+    else:
+        df['note_stress_index'] = 0.0
     return df
 
 # ─── Upload: map an arbitrary CSV into the model's feature space ──
@@ -367,7 +376,7 @@ def map_upload_to_portfolio(df: pd.DataFrame) -> pd.DataFrame:
 
     # Unstructured data: score officer notes → note_stress_index (neutral if absent)
     if 'note_stress_index' not in df.columns:
-        if 'officer_notes' in df.columns:
+        if 'officer_notes' in df.columns and nlp_features is not None:
             df['note_stress_index'] = nlp_features.stress_index(df['officer_notes'])
         else:
             df['note_stress_index'] = 0.5
@@ -557,6 +566,11 @@ def predict_pd(features: dict) -> float:
 @app.get("/")
 def root():
     return RedirectResponse(url="/dashboard/index.html")
+
+@app.get("/health")
+def health():
+    """Health check for Render deployment."""
+    return {"status": "healthy", "model_loaded": xgb_model is not None}
 
 @app.get("/model-performance")
 def get_model_performance():
@@ -1113,3 +1127,12 @@ def copilot(payload: dict = Body(...)):
         answer = _answer_template(question, ctx)
         engine = f"template (fallback: {type(e).__name__})"
     return {"engine": engine, "company_id": company_id, "question": question, "answer": answer}
+
+
+# ─── Vercel/Serverless Handler ────────────────────────────────────────
+try:
+    from mangum import Mangum
+    handler = Mangum(app)
+except ImportError:
+    # If running locally without Mangum, it's fine
+    pass

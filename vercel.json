@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/(portfolio|borrowers|upload|reset|refresh|copilot)(.*)",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/dashboard/(.*)",
+      "dest": "public/$1"
+    },
+    {
+      "src": "/reports/(.*)",
+      "dest": "public/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "public/$1"
+    }
+  ]
+}

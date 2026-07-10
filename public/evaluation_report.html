@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDBI MSME — Model Evaluation Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-100 text-gray-800 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-slate-900 to-slate-700 text-white">
+        <div class="max-w-6xl mx-auto px-6 py-8">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold">Model Evaluation Report</h1>
+                    <p class="text-slate-300 text-sm mt-1">IDBI MSME Risk Intelligence — visual results from <code class="text-yellow-300">evaluation_report/</code></p>
+                </div>
+                <a href="/dashboard/index.html" class="copilot-chip text-sm font-semibold px-4 py-2 rounded-full bg-white/10 border border-white/25 hover:bg-yellow-400/25 hover:border-yellow-400 transition">← Back to Dashboard</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 py-10">
+        <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+    </main>
+
+    <footer class="text-center text-xs text-slate-400 py-8">
+        Generated from <code>evaluation_report/</code> &middot; IDBI MSME Risk Intelligence
+    </footer>
+
+    <script>
+        const charts = [
+            { file: "master_dashboard.png",      title: "Master Dashboard",            desc: "Combined overview of all model metrics." },
+            { file: "dashboard.png",             title: "Dashboard",                   desc: "Primary evaluation summary." },
+            { file: "metrics_all_models.png",    title: "Metrics — All Models",        desc: "Side-by-side metrics across every model." },
+            { file: "metrics_comparison.png",    title: "Metrics Comparison",          desc: "Comparative metric breakdown." },
+            { file: "roc_all_models.png",        title: "ROC — All Models",            desc: "ROC curves for all models." },
+            { file: "roc_curves.png",            title: "ROC Curves",                  desc: "Receiver operating characteristic curves." },
+            { file: "pr_all_models.png",         title: "Precision-Recall — All Models", desc: "PR curves across all models." },
+            { file: "pr_curves.png",             title: "Precision-Recall Curves",     desc: "Precision vs. recall trade-off." },
+            { file: "confusion_all_models.png",  title: "Confusion — All Models",      desc: "Confusion matrices for all models." },
+            { file: "confusion_matrices.png",    title: "Confusion Matrices",          desc: "True vs. predicted breakdown." },
+            { file: "logloss_all_models.png",    title: "Log Loss — All Models",       desc: "Log loss across every model." },
+            { file: "log_loss_comparison.png",   title: "Log Loss Comparison",         desc: "Comparative log loss." },
+            { file: "score_dist_all_models.png", title: "Score Distribution — All Models", desc: "Predicted score distributions." },
+            { file: "score_distributions.png",   title: "Score Distributions",         desc: "Distribution of model scores." }
+        ];
+
+        const gallery = document.getElementById("gallery");
+        charts.forEach(c => {
+            const card = document.createElement("div");
+            card.className = "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col";
+            card.innerHTML = `
+                <div class="px-5 pt-4">
+                    <h2 class="font-semibold text-slate-800">${c.title}</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">${c.desc}</p>
+                </div>
+                <a href="/reports/${c.file}" target="_blank" class="block p-4">
+                    <img src="/reports/${c.file}" alt="${c.title}"
+                         class="w-full h-auto rounded-lg border border-slate-100 hover:opacity-90 transition" loading="lazy">
+                </a>`;
+            gallery.appendChild(card);
+        });
+    </script>
+</body>
+</html>

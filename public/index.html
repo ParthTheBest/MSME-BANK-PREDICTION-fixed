@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDBI Risk Engine — Credit Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  /* Canvas & Surface */
+  --canvas:       #F8FAFC;
+  --surface:      #FFFFFF;
+  --surface-2:    #F1F5F9;
+  --surface-3:    #E2E8F0;
+
+  /* Sidebar / Header authority */
+  --sidebar-bg:   #0F172A;
+  --sidebar-2:    #1E293B;
+  --sidebar-3:    #334155;
+  --sidebar-text: #94A3B8;
+  --sidebar-text-active: #F8FAFC;
+
+  /* Text hierarchy */
+  --text-primary:   #1E293B;
+  --text-secondary: #475569;
+  --text-tertiary:  #94A3B8;
+
+  /* Brand accent */
+  --blue:         #0284C7;
+  --blue-hover:   #0369A1;
+  --blue-pale:    #E0F2FE;
+  --blue-light:   #BAE6FD;
+
+  /* Alert tiers — flat, clean */
+  --critical-text: #DC2626;
+  --critical-bg:   #FEF2F2;
+  --critical-border:#FCA5A5;
+
+  --warning-text:  #D97706;
+  --warning-bg:    #FEF3C7;
+  --warning-border:#FDE68A;
+
+  --safe-text:     #16A34A;
+  --safe-bg:       #DCFCE7;
+  --safe-border:   #BBF7D0;
+
+  --high-text:     #D97706;
+  --high-bg:       #FEF3C7;
+  --high-border:   #FDE68A;
+
+  /* Borders */
+  --border:       #E2E8F0;
+  --border-2:     #CBD5E1;
+
+  /* Shadows */
+  --shadow-sm:    0 1px 3px 0 rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md:    0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+
+  /* Radius */
+  --radius-sm:    4px;
+  --radius:       8px;
+  --radius-lg:    12px;
+
+  /* Sidebar width */
+  --sidebar-w:    220px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--canvas);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   APP SHELL — sidebar + main
+   ============================================================ */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 40;
+  overflow-y: auto;
+}
+
+/* Logo */
+.sidebar-logo {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 32px; height: 32px;
+  background: var(--blue);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+
+.logo-text-block { flex: 1; min-width: 0; }
+
+.logo-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sidebar-text-active);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--sidebar-text);
+  margin-top: 1px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.3px;
+}
+
+/* Nav */
+.sidebar-nav {
+  padding: 12px 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--sidebar-3);
+  padding: 10px 8px 4px;
+  margin-top: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sidebar-text);
+  transition: background 0.1s, color 0.1s;
+  user-select: none;
+}
+
+.nav-item:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--sidebar-text-active);
+}
+
+.nav-item.active {
+  background: rgba(2,132,199,0.18);
+  color: #38BDF8;
+}
+
+.nav-icon {
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--critical-bg);
+  color: var(--critical-text);
+  border: 1px solid var(--critical-border);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Sidebar footer */
+.sidebar-footer {
+  padding: 12px 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.model-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-sm);
+}
+
+.model-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #22C55E;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(34,197,94,0.2);
+}
+
+.model-pill-text { flex: 1; min-width: 0; }
+.model-pill-name { font-size: 11px; font-weight: 500; color: var(--sidebar-text-active); }
+.model-pill-metric {
+  font-size: 10px;
+  color: var(--sidebar-text);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 1px;
+}
+
+/* ============================================================
+   MAIN AREA (offset for sidebar)
+   ============================================================ */
+.main-area {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.breadcrumb-sep { color: var(--border-2); }
+.breadcrumb-current { color: var(--text-primary); font-weight: 500; }
+
+.topbar-live {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--safe-text);
+  background: var(--safe-bg);
+  border: 1px solid var(--safe-border);
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.topbar-live-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--safe-text);
+}
+
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 14px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: none;
+  transition: background 0.12s, box-shadow 0.12s;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn-outline {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  color: var(--text-secondary);
+}
+
+.btn-outline:hover {
+  background: var(--surface-2);
+  border-color: var(--border-2);
+  color: var(--text-primary);
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+  border: 1px solid var(--blue);
+}
+
+.btn-primary:hover { background: var(--blue-hover); border-color: var(--blue-hover); }
+
+.avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--sidebar-bg);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   PAGE BODY
+   ============================================================ */
+.page-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+/* ============================================================
+   METRIC CARDS ROW
+   ============================================================ */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Left accent stripe on card */
+.metric-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.metric-card.blue::before   { background: var(--blue); }
+.metric-card.red::before    { background: var(--critical-text); }
+.metric-card.amber::before  { background: var(--warning-text); }
+.metric-card.green::before  { background: var(--safe-text); }
+
+.metric-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.5px;
+}
+
+.metric-value .unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0;
+}
+
+.metric-delta {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.metric-delta.neg { background: var(--critical-bg); color: var(--critical-text); }
+.metric-delta.pos { background: var(--safe-bg);     color: var(--safe-text); }
+.metric-delta.neu { background: var(--surface-2);   color: var(--text-tertiary); }
+
+/* ============================================================
+   TWO-COLUMN CONTENT AREA
+   ============================================================ */
+.content-columns {
+  display: grid;
+  grid-template-columns: 1fr 352px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ============================================================
+   CARD BASE
+   ============================================================ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-sub {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+/* ============================================================
+   FILTER / SEARCH BAR
+   ============================================================ */
+.table-controls {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 4px 11px;
+  border: 1px solid var(--border-2);
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: var(--surface);
+  transition: all 0.1s;
+  user-select: none;
+}
+
+.filter-chip:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.filter-chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.filter-chip.red.active  { background: var(--critical-bg); border-color: var(--critical-border); color: var(--critical-text); }
+.filter-chip.amber.active{ background: var(--warning-bg);  border-color: var(--warning-border);  color: var(--warning-text); }
+.filter-chip.green.active{ background: var(--safe-bg);     border-color: var(--safe-border);     color: var(--safe-text); }
+
+.search-box {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+}
+
+.search-box input {
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  width: 160px;
+}
+
+.search-box input::placeholder { color: var(--text-tertiary); }
+
+/* ============================================================
+   DATA TABLE
+   ============================================================ */
+.data-table { width: 100%; border-collapse: collapse; }
+
+.data-table thead th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.08s;
+  position: relative;
+}
+
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--surface-2); }
+
+/* Selected row — matches active dossier */
+.data-table tbody tr.row-active { background: var(--blue-pale); }
+.data-table tbody tr.row-active:hover { background: var(--blue-pale); }
+
+/* Row left border = modernized risk thread */
+.data-table tbody tr td:first-child {
+  border-left: 3px solid transparent;
+}
+
+.data-table tbody tr.risk-critical td:first-child { border-left-color: var(--critical-text); }
+.data-table tbody tr.risk-warning  td:first-child { border-left-color: var(--warning-text);  }
+.data-table tbody tr.risk-safe     td:first-child { border-left-color: var(--safe-text);     }
+.data-table tbody tr.risk-high     td:first-child { border-left-color: #F59E0B;               }
+
+.data-table td {
+  padding: 13px 16px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.borrower-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.borrower-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pd-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.pd-value.critical { color: var(--critical-text); }
+.pd-value.high     { color: #F59E0B; }
+.pd-value.warning  { color: var(--warning-text); }
+.pd-value.safe     { color: var(--safe-text); }
+
+/* Score micro-bar */
+.score-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.score-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 22px;
+  color: var(--text-secondary);
+}
+
+.score-track {
+  width: 52px;
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.score-fill { height: 100%; border-radius: 2px; }
+.score-fill.critical { background: var(--critical-text); }
+.score-fill.high     { background: #F59E0B; }
+.score-fill.warning  { background: var(--warning-text); }
+.score-fill.safe     { background: var(--safe-text); }
+
+/* Risk badge */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid;
+  letter-spacing: 0.2px;
+}
+
+.risk-badge::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.risk-badge.critical { color: var(--critical-text); background: var(--critical-bg); border-color: var(--critical-border); }
+.risk-badge.high     { color: #B45309;               background: var(--warning-bg);  border-color: var(--warning-border); }
+.risk-badge.warning  { color: var(--warning-text);   background: var(--warning-bg);  border-color: var(--warning-border); }
+.risk-badge.safe     { color: var(--safe-text);      background: var(--safe-bg);     border-color: var(--safe-border); }
+
+.currency-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.link-action {
+  font-size: 12px;
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  transition: color 0.1s;
+}
+
+.link-action:hover { color: var(--blue-hover); text-decoration: underline; }
+.link-action.active { color: var(--safe-text); font-weight: 600; pointer-events: none; }
+
+/* Table footer */
+.table-footer {
+  padding: 11px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.table-count { font-size: 12px; color: var(--text-tertiary); }
+
+.pagination { display: flex; align-items: center; gap: 3px; }
+
+.page-btn {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  transition: all 0.1s;
+}
+
+.page-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+.page-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ============================================================
+   MODEL PERF STRIP
+   ============================================================ */
+.perf-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-top: 1px solid var(--border);
+}
+
+.perf-cell {
+  padding: 14px 18px;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+
+.perf-cell:last-child { border-right: none; }
+
+.perf-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.perf-val.blue  { color: var(--blue); }
+.perf-val.green { color: var(--safe-text); }
+.perf-val.uplift{ color: var(--safe-text); font-size: 15px; }
+
+.perf-name {
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  margin-top: 3px;
+}
+
+/* ============================================================
+   UPLOAD ROW
+   ============================================================ */
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.upload-icon {
+  width: 36px; height: 36px;
+  border: 1.5px dashed var(--border-2);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.upload-icon:hover { border-color: var(--blue); color: var(--blue); }
+
+.upload-copy { flex: 1; }
+.upload-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.upload-desc  { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; }
+
+.col-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 18px 14px;
+}
+
+.col-tag {
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   RIGHT DOSSIER PANEL
+   ============================================================ */
+.dossier {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 120px);
+}
+
+/* Dossier header — dark navy, anchors the panel */
+.dossier-header {
+  background: var(--sidebar-bg);
+  padding: 18px 18px 16px;
+}
+
+.dossier-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--sidebar-text);
+  margin-bottom: 6px;
+}
+
+.dossier-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #F8FAFC;
+  line-height: 1.2;
+  margin-bottom: 10px;
+}
+
+.dossier-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.dossier-chip {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--sidebar-text);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+/* PD verdict band */
+.pd-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
+}
+
+.pd-main { }
+.pd-label-small {
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--warning-text);
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+
+.pd-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--warning-text);
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.pd-trend {
+  font-size: 11.5px;
+  color: var(--warning-text);
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.pd-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  background: var(--warning-bg);
+  border: 1.5px solid var(--warning-border);
+  border-radius: var(--radius-sm);
+}
+
+.pd-badge-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--warning-text);
+  letter-spacing: 0.5px;
+}
+
+.pd-badge-sub {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--warning-text);
+  opacity: 0.7;
+}
+
+/* Panel section wrapper */
+.panel-section {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-section:last-of-type { border-bottom: none; }
+
+.panel-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
+
+/* PD timeline bars */
+.timeline-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 48px;
+  margin-bottom: 5px;
+}
+
+.t-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-height: 4px;
+  transition: opacity 0.1s;
+}
+
+.t-bar.observed { opacity: 1; }
+.t-bar.forecast { opacity: 0.35; }
+.t-bar.current  { opacity: 1; outline: 2px solid var(--warning-text); outline-offset: 1px; }
+
+.t-bar.c-safe    { background: var(--safe-text); }
+.t-bar.c-warning { background: var(--warning-text); }
+.t-bar.c-high    { background: #F59E0B; }
+.t-bar.c-critical{ background: var(--critical-text); }
+
+.timeline-months {
+  display: flex;
+  gap: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+
+.timeline-months span { flex: 1; text-align: center; }
+
+.timeline-note {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+/* EL components */
+.el-formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.el-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.el-amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--critical-text);
+  letter-spacing: -0.5px;
+}
+
+.el-sub { font-size: 11.5px; color: var(--text-tertiary); }
+
+.el-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.el-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.el-box-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.el-box-name {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* SHAP rows */
+.shap-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.shap-row:last-child { border-bottom: none; }
+
+.shap-rank {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  min-width: 14px;
+}
+
+.shap-name { font-size: 12px; color: var(--text-secondary); min-width: 118px; }
+
+.shap-track {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.shap-fill { height: 100%; border-radius: 2px; }
+.shap-fill.pos { background: var(--critical-text); }
+.shap-fill.neg { background: var(--safe-text); }
+
+.shap-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  min-width: 40px;
+  text-align: right;
+  font-weight: 500;
+}
+
+.shap-val.pos { color: var(--critical-text); }
+.shap-val.neg { color: var(--safe-text); }
+
+/* ---- Explainable-AI: plain-English summary + baseline bar ---- */
+.xai-summary {
+  font-size: 12px; line-height: 1.55; color: var(--text-secondary);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent, #6366f1);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+}
+.xai-summary b { color: var(--text-primary); font-weight: 600; }
+.xai-baseline { margin-bottom: 12px; }
+.xai-base-labels {
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; color: var(--text-tertiary); margin-bottom: 4px;
+}
+.xai-base-labels .cur { color: var(--critical-text); font-weight: 600; }
+.xai-base-track {
+  position: relative; height: 6px; border-radius: 3px;
+  background: var(--surface-3); overflow: hidden;
+}
+.xai-base-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; }
+.xai-base-fill.base { background: var(--text-tertiary); opacity: .55; }
+.xai-base-fill.cur  { background: var(--critical-text); }
+.xai-base-marker {
+  position: absolute; top: -2px; width: 2px; height: 10px;
+  background: var(--text-secondary);
+}
+.xai-group-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-tertiary); margin: 10px 0 2px; font-weight: 600;
+}
+.shap-name .shap-sub {
+  display: block; font-size: 10px; color: var(--text-tertiary);
+  font-family: 'JetBrains Mono', monospace; margin-top: 1px;
+}
+.shap-dir { font-size: 10px; margin-left: 3px; }
+
+/* Action items */
+.action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.action-item:last-child { border-bottom: none; }
+
+.action-num {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.action-num.p1 { background: var(--critical-bg); color: var(--critical-text); border: 1px solid var(--critical-border); }
+.action-num.p2 { background: var(--warning-bg);  color: var(--warning-text);  border: 1px solid var(--warning-border); }
+.action-num.p3 { background: var(--blue-pale);   color: var(--blue);          border: 1px solid var(--blue-light); }
+
+.action-content {}
+.action-title { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+.action-desc  { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.4; }
+
+/* ============================================================
+   COPILOT
+   ============================================================ */
+.copilot-header {
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+}
+
+.copilot-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.copilot-dot {
+  width: 24px; height: 24px;
+  background: var(--blue);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  color: #fff;
+}
+
+.copilot-model-label {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.copilot-chat {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+}
+
+.chat-msg { display: flex; gap: 8px; align-items: flex-start; }
+.chat-msg.user-msg { flex-direction: row-reverse; }
+
+.chat-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.chat-avatar.ai   { background: var(--blue); color: #fff; }
+.chat-avatar.user { background: var(--sidebar-bg); color: #fff; }
+
+.chat-bubble {
+  max-width: 86%;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.chat-msg.ai-msg   .chat-bubble { background: var(--surface-2); border: 1px solid var(--border); }
+.chat-msg.user-msg .chat-bubble { background: var(--blue-pale);  border: 1px solid var(--blue-light); color: var(--blue-hover); }
+
+.copilot-input-row {
+  display: flex;
+  border-top: 1px solid var(--border);
+}
+
+.copilot-input-row input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.copilot-input-row input::placeholder { color: var(--text-tertiary); }
+
+.copilot-send {
+  padding: 10px 16px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  transition: background 0.1s;
+}
+
+.copilot-send:hover { background: var(--blue-hover); }
+
+/* ============================================================
+   STATUS BAR
+   ============================================================ */
+.status-bar {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.status-live {
+  display: flex; align-items: center; gap: 5px;
+}
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--safe-text);
+}
+
+.status-bar-right { margin-left: auto; }
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--canvas); }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
+
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ======================== SIDEBAR ======================== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">ID</div>
+      <div class="logo-text-block">
+        <div class="logo-name">IDBI Risk Engine</div>
+        <div class="logo-sub">Credit Intelligence</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Monitor</div>
+
+      <div class="nav-item active">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+        </div>
+        Portfolio Overview
+      </div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        Borrowers
+        <span class="nav-badge" id="nav-borrowers-badge">—</span>
+      </div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+        </div>
+        Risk Trends
+      </div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        Early Warnings
+        <span class="nav-badge" id="nav-warnings-badge">—</span>
+      </div>
+
+      <div class="nav-group-label">Analyse</div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+        SHAP Explainer
+      </div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+        </div>
+        Model Performance
+      </div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+        </div>
+        Expected Loss
+      </div>
+
+      <div class="nav-group-label">Data</div>
+
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        Upload Portfolio
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="model-pill">
+        <div class="model-dot"></div>
+        <div class="model-pill-text">
+          <div class="model-pill-name">XGBoost + NLP</div>
+          <div class="model-pill-metric" id="pill-metric">AUC — · — rec.</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ======================== MAIN ======================== -->
+  <div class="main-area">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="breadcrumb">
+          <span>IDBI Risk Engine</span>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-current">Portfolio Overview</span>
+        </div>
+        <div class="topbar-live">
+          <div class="topbar-live-dot"></div>
+          Live · Updated just now
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <button class="btn btn-outline" id="refresh-btn" onclick="refreshPortfolio()" title="Onboard 10 new borrowers">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+          </svg>
+          New Loans
+        </button>
+        <a class="btn btn-outline" href="/dashboard/evaluation_report.html" title="View model evaluation charts">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Reports
+        </a>
+        <button class="btn btn-outline" onclick="resetPortfolio()" title="Restore demo portfolio">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+          </svg>
+          Reset
+        </button>
+        <div class="avatar">KS</div>
+      </div>
+    </header>
+
+    <!-- PAGE BODY -->
+    <div class="page-body">
+
+      <!-- ANALYTICS VIEW (Risk Trends / Expected Loss) -->
+      <div id="analytics-view" style="display:none"></div>
+
+      <!-- METRIC CARDS -->
+      <div class="metrics-row" id="metrics-row">
+        <div class="metric-card red">
+          <div class="metric-label">Critical Borrowers</div>
+          <div class="metric-value" id="m-critical">—</div>
+          <div class="metric-delta neg" id="m-critical-sub">High + Critical band</div>
+        </div>
+        <div class="metric-card amber">
+          <div class="metric-label">Expected Loss</div>
+          <div class="metric-value" id="m-eloss">—</div>
+          <div class="metric-delta neu">PD × EAD × LGD</div>
+        </div>
+        <div class="metric-card blue">
+          <div class="metric-label">Total Borrowers</div>
+          <div class="metric-value" id="m-total">—</div>
+          <div class="metric-delta neu" id="m-total-sub">MSME · Active</div>
+        </div>
+        <div class="metric-card green">
+          <div class="metric-label">Model ROC-AUC</div>
+          <div class="metric-value" id="m-auc">—</div>
+          <div class="metric-delta pos">XGBoost + NLP hybrid</div>
+        </div>
+      </div>
+
+      <!-- CONTENT COLUMNS -->
+      <div class="content-columns" id="content-columns">
+
+        <!-- LEFT: TABLE + PERF + UPLOAD -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+
+          <!-- BORROWER TABLE -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Borrower Portfolio</div>
+                <div class="card-sub" id="table-sort-label">Sorted by PD (descending) · XGBoost + Isotonic Calibration + NLP</div>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <span style="font-size:11px;color:var(--text-tertiary);align-self:center">Click column headers to sort</span>
+              </div>
+            </div>
+
+            <!-- Filter / Search -->
+            <div class="table-controls">
+              <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-right:2px;">Filter:</span>
+              <div class="filter-chip active" data-filter="all" onclick="setFilter(this,'all')">All</div>
+              <div class="filter-chip red" data-filter="Critical" onclick="setFilter(this,'Critical')">Critical</div>
+              <div class="filter-chip amber" data-filter="High" onclick="setFilter(this,'High')">High Risk</div>
+              <div class="filter-chip" data-filter="Medium" onclick="setFilter(this,'Medium')">Watch</div>
+              <div class="filter-chip green" data-filter="Low" onclick="setFilter(this,'Low')">Safe</div>
+
+              <div class="search-box">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" id="borrower-search" placeholder="Search borrower or ID…" oninput="renderTable()">
+              </div>
+            </div>
+
+            <!-- Table -->
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th onclick="setSortCol('company_id')" style="cursor:pointer">Borrower <span id="sort-company_id"></span></th>
+                  <th onclick="setSortCol('risk_score')" style="cursor:pointer">Score <span id="sort-risk_score">&#9660;</span></th>
+                  <th onclick="setSortCol('pd')" style="cursor:pointer">PD (12M) <span id="sort-pd"></span></th>
+                  <th onclick="setSortCol('outstanding_loan')" style="cursor:pointer">Exposure <span id="sort-outstanding_loan"></span></th>
+                  <th onclick="setSortCol('expected_loss')" style="cursor:pointer">Exp. Loss <span id="sort-expected_loss"></span></th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="borrower-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-tertiary)">Loading borrowers…</td></tr>
+              </tbody>
+            </table>
+
+            <!-- Footer -->
+            <div class="table-footer">
+              <div class="table-count" id="table-count">Loading…</div>
+              <div id="pagination-info" style="font-size:11px;color:var(--text-tertiary)"></div>
+            </div>
+          </div>
+
+          <!-- MODEL PERFORMANCE CARD -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Model Performance</div>
+                <div class="card-sub" id="perf-card-sub">XGBoost · Isotonic Calibration · 10 leading indicators · no data leakage</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--safe-text);background:var(--safe-bg);border:1px solid var(--safe-border);padding:3px 9px;border-radius:20px;font-weight:500;">
+                <div style="width:5px;height:5px;border-radius:50%;background:var(--safe-text);"></div>
+                Monotonic Constraints
+              </div>
+            </div>
+            <div class="perf-strip">
+              <div class="perf-cell">
+                <div class="perf-val blue" id="perf-auc">—</div>
+                <div class="perf-name">ROC-AUC</div>
+              </div>
+              <div class="perf-cell">
+                <div class="perf-val blue" id="perf-cal-auc">—</div>
+                <div class="perf-name">Calibrated AUC</div>
+              </div>
+              <div class="perf-cell">
+                <div class="perf-val green" id="perf-recall">—</div>
+                <div class="perf-name">Recall @ 0.5</div>
+              </div>
+              <div class="perf-cell">
+                <div class="perf-val" id="perf-brier">—</div>
+                <div class="perf-name">Brier Score</div>
+              </div>
+              <div class="perf-cell">
+                <div class="perf-val uplift">10 features</div>
+                <div class="perf-name">Leading Indicators</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- UPLOAD CARD -->
+          <div class="card" id="upload-card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Upload Portfolio</div>
+                <div class="card-sub">credit_risk_dataset.csv · 9 required columns</div>
+              </div>
+            </div>
+            <div class="upload-row">
+              <div class="upload-icon">↑</div>
+              <div class="upload-copy">
+                <div class="upload-title" id="upload-title">Drop your CSV file here</div>
+                <div class="upload-desc" id="upload-desc">Or click Browse to select from your system</div>
+              </div>
+              <input type="file" id="csv-input" accept=".csv" hidden onchange="onFilePicked(this)">
+              <button class="btn btn-outline" onclick="document.getElementById('csv-input').click()">Browse</button>
+              <button class="btn btn-primary" id="upload-btn" onclick="uploadPortfolio()">Upload &amp; Predict</button>
+            </div>
+            <div class="col-tags">
+              <span style="font-size:10px;color:var(--text-tertiary);margin-right:4px;align-self:center;font-weight:500;text-transform:uppercase;letter-spacing:0.5px">Required:</span>
+              <span class="col-tag">person_age</span>
+              <span class="col-tag">person_income</span>
+              <span class="col-tag">loan_amnt</span>
+              <span class="col-tag">loan_int_rate</span>
+              <span class="col-tag">loan_percent_income</span>
+              <span class="col-tag">cb_person_cred_hist_length</span>
+              <span class="col-tag">home_ownership</span>
+              <span class="col-tag">loan_intent</span>
+              <span class="col-tag">officer_notes</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: DOSSIER PANEL -->
+        <div class="dossier">
+
+          <!-- Dark header -->
+          <div class="dossier-header">
+            <div class="dossier-eyebrow">Active Dossier · Under Review</div>
+            <div class="dossier-name" id="dos-name">—</div>
+            <div class="dossier-chips" id="dos-chips"></div>
+          </div>
+
+          <!-- PD verdict -->
+          <div class="pd-verdict">
+            <div class="pd-main">
+              <div class="pd-label-small">12-Month Default Probability</div>
+              <div class="pd-number" id="dos-pd">—</div>
+              <div class="pd-trend" id="dos-trend">—</div>
+            </div>
+            <div class="pd-badge" id="dos-badge">
+              <span class="pd-badge-text">—</span>
+            </div>
+          </div>
+
+          <!-- PD Timeline -->
+          <div class="panel-section">
+            <div class="panel-label">PD Trajectory — Jan to Dec 2025</div>
+            <div class="timeline-bars" id="dos-timeline"></div>
+            <div class="timeline-months">
+              <span>J</span><span>F</span><span>M</span><span>A</span>
+              <span>M</span><span>J</span><span>J</span><span>A</span>
+              <span>S</span><span>O</span><span>N</span><span>D</span>
+            </div>
+            <div class="timeline-note">J–Jun: observed · Jul–Dec: model projection (faded)</div>
+          </div>
+
+          <!-- Expected Loss -->
+          <div class="panel-section">
+            <div class="panel-label">Expected Credit Loss</div>
+            <div class="el-formula">EL = PD × EAD × LGD</div>
+            <div class="el-value-row">
+              <div class="el-amount" id="dos-el">—</div>
+              <div class="el-sub">at risk horizon</div>
+            </div>
+            <div class="el-grid">
+              <div class="el-box">
+                <div class="el-box-val" id="dos-el-pd">—</div>
+                <div class="el-box-name">PD</div>
+              </div>
+              <div class="el-box">
+                <div class="el-box-val" id="dos-el-ead">—</div>
+                <div class="el-box-name">EAD</div>
+              </div>
+              <div class="el-box">
+                <div class="el-box-val" id="dos-el-lgd">—</div>
+                <div class="el-box-name">LGD</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SHAP -->
+          <div class="panel-section">
+            <div class="panel-label">Risk Drivers — SHAP Attribution</div>
+            <div id="dos-shap"></div>
+          </div>
+
+          <!-- Action Ladder -->
+          <div class="panel-section">
+            <div class="panel-label">Action Escalation</div>
+            <div id="dos-actions"></div>
+          </div>
+
+          <!-- Copilot -->
+          <div class="copilot-header">
+            <div class="copilot-title">
+              <div class="copilot-dot">✦</div>
+              Risk Copilot
+            </div>
+            <div class="copilot-model-label">claude-opus-4-8</div>
+          </div>
+
+          <div class="copilot-chat" id="copilot-chat"></div>
+
+          <div class="copilot-input-row">
+            <input type="text" id="copilot-input" placeholder="Ask about this borrower, model output, or portfolio…"
+                   onkeydown="if(event.key==='Enter')askCopilot()">
+            <button class="copilot-send" onclick="askCopilot()">Send →</button>
+          </div>
+
+        </div>
+        <!-- end dossier -->
+
+      </div>
+      <!-- end content-columns -->
+
+    </div>
+    <!-- end page-body -->
+
+    <!-- STATUS BAR -->
+    <div class="status-bar">
+      <div class="status-live">
+        <div class="status-dot"></div>
+        Model live — XGBoost Hybrid
+      </div>
+      <span id="status-time">Last inference: —</span>
+      <span id="foot-data">— records · — features</span>
+      <span id="foot-model">XGBoost · ROC-AUC — · Recall —</span>
+      <div class="status-bar-right">IDBI Credit Risk Intelligence Engine v2.0 · Track 04</div>
+    </div>
+
+  </div>
+  <!-- end main-area -->
+
+</div>
+<!-- end app-shell -->
+
+<script>
+/* ============================================================
+   LIVE API WIRING  —  FastAPI backend (main.py)
+   ============================================================ */
+const $ = id => document.getElementById(id);
+
+// backend band  →  modern UI class / label / palette
+const BAND = {
+  Critical: { cls:'critical', label:'Critical',  badge:'Critical',  color:'var(--critical-text)', t:'c-critical',
+              pal:{bg:'var(--critical-bg)', bd:'var(--critical-border)', tx:'var(--critical-text)'} },
+  High:     { cls:'high',     label:'High Risk', badge:'High',      color:'#B45309',              t:'c-high',
+              pal:{bg:'var(--warning-bg)',  bd:'var(--warning-border)',  tx:'#B45309'} },
+  Medium:   { cls:'warning',  label:'Watch',     badge:'Watch',     color:'var(--warning-text)',  t:'c-warning',
+              pal:{bg:'var(--warning-bg)',  bd:'var(--warning-border)',  tx:'var(--warning-text)'} },
+  Low:      { cls:'safe',     label:'Safe',      badge:'Safe',      color:'var(--safe-text)',     t:'c-safe',
+              pal:{bg:'var(--safe-bg)',     bd:'var(--safe-border)',     tx:'var(--safe-text)'} },
+};
+const band = b => BAND[b] || BAND.Medium;
+
+const money = v => v >= 1e7 ? '₹' + (v/1e7).toFixed(2) + ' Cr' : '₹' + (v/1e5).toFixed(1) + 'L';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let allBorrowers = [];
+let currentFilter = 'all';
+let currentCompany = null;
+let portfolioData = null;
+let currentView = 'overview';
+// Column sort state — default: risk_score descending
+let sortCol = 'risk_score';
+let sortDir = -1;  // -1 = descending, +1 = ascending
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let d; try { d = await r.json(); } catch(_){} throw new Error((d && d.detail) || r.statusText); }
+  return r.json();
+}
+
+/* ---------- bootstrap ---------- */
+async function init() {
+  attachNav();
+  try {
+    await Promise.all([loadPortfolio(), loadPerf(), loadBorrowers()]);
+    if (allBorrowers.length) loadDossier(allBorrowers[0].company_id);
+  } catch (e) {
+    $('borrower-tbody').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--critical-text)">API error: ${esc(e.message)} — is FastAPI running?</td></tr>`;
+    console.error(e);
+  }
+}
+
+/* ---------- portfolio metric cards ---------- */
+async function loadPortfolio() {
+  const p = await api('/portfolio');
+  portfolioData = p;
+  const d = p.risk_distribution || {};
+  $('m-critical').textContent = (d.Critical || 0).toLocaleString();
+  $('m-critical-sub').textContent = `${(d.High || 0).toLocaleString()} high-risk on watch`;
+  $('m-eloss').innerHTML = money(p.total_expected_loss);
+  $('m-total').textContent = p.total_borrowers.toLocaleString();
+  $('m-total-sub').textContent = `Avg PD ${(p.avg_pd * 100).toFixed(1)}% · MSME`;
+  // sidebar badges
+  const tot = p.total_borrowers;
+  $('nav-borrowers-badge').textContent = tot >= 1000 ? (tot/1000).toFixed(1) + 'K' : tot;
+  $('nav-warnings-badge').textContent = (d.High || 0) + (d.Critical || 0);
+  // refresh analytics view if it is the one on screen
+  if (currentView === 'trends') renderTrends();
+  if (currentView === 'eloss') renderExpectedLoss();
+}
+
+/* ---------- model performance ---------- */
+async function loadPerf() {
+  try {
+    const perf = await api('/model-performance');
+    const t = perf && perf.tuned;
+    if (t) {
+      // Calibrated AUC is the served roc_auc (report already reflects the calibrated model);
+      // raw_auc is the pre-calibration XGBoost score.
+      const auc = t.roc_auc != null ? Number(t.roc_auc).toFixed(3) : '—';
+      const rawAuc = t.raw_auc != null ? Number(t.raw_auc).toFixed(3) : auc;
+      const recall = t['recall_at_0.5'] != null ? (Number(t['recall_at_0.5'])*100).toFixed(0)+'%' : '—';
+      const brier  = t.brier_score != null ? Number(t.brier_score).toFixed(4) : '—';
+      if ($('perf-auc'))     $('perf-auc').textContent = rawAuc;
+      if ($('m-auc'))        $('m-auc').textContent    = auc;   // "Model ROC-AUC" metric card
+      if ($('perf-cal-auc')) $('perf-cal-auc').textContent = auc;
+      if ($('perf-recall'))  $('perf-recall').textContent = recall;
+      if ($('perf-brier'))   $('perf-brier').textContent  = brier;
+      // Keep the decorative pill + footer honest and in sync with the live report.
+      const nFeat = perf.n_features != null ? perf.n_features : '—';
+      const nTot  = (perf.n_train != null && perf.n_test != null && perf.n_calibration != null)
+                    ? (perf.n_train + perf.n_test + perf.n_calibration) : null;
+      const nTotStr = nTot != null ? nTot.toLocaleString() : '—';
+      if ($('pill-metric')) $('pill-metric').textContent = `AUC ${auc} · ${nTotStr} rec.`;
+      if ($('foot-data'))   $('foot-data').textContent = `${nTotStr} records · ${nFeat} features`;
+      if ($('foot-model'))  $('foot-model').textContent = `XGBoost · ROC-AUC ${auc} · Recall ${recall}`;
+    }
+  } catch (_) {
+    if ($('perf-auc')) $('perf-auc').textContent = '—';
+  }
+}
+
+/* ---------- borrower table ---------- */
+async function loadBorrowers() {
+  allBorrowers = await api('/borrowers?limit=200');
+  renderTable();
+}
+
+function setSortCol(col) {
+  if (sortCol === col) {
+    sortDir = -sortDir;  // toggle direction
+  } else {
+    sortCol = col;
+    sortDir = col === 'company_id' ? 1 : -1;  // text cols default asc, numeric default desc
+  }
+  // Update sort arrow indicators
+  ['company_id','risk_score','pd','outstanding_loan','expected_loss'].forEach(c => {
+    const el = document.getElementById('sort-' + c);
+    if (el) el.innerHTML = c === sortCol ? (sortDir === -1 ? '&#9660;' : '&#9650;') : '';
+  });
+  // Update subtitle
+  const names = {company_id:'Borrower ID',risk_score:'Score',pd:'PD',outstanding_loan:'Exposure',expected_loss:'Exp. Loss'};
+  const lbl = document.getElementById('table-sort-label');
+  if (lbl) lbl.textContent = `Sorted by ${names[sortCol]} (${sortDir===-1?'descending':'ascending'}) · XGBoost + Isotonic Calibration + NLP`;
+  renderTable();
+}
+
+function renderTable() {
+  const q = ($('borrower-search').value || '').toLowerCase().trim();
+  let rows = allBorrowers.filter(b => {
+    if (currentFilter === 'warnings') { if (b.risk_band !== 'High' && b.risk_band !== 'Critical') return false; }
+    else if (currentFilter !== 'all' && b.risk_band !== currentFilter) return false;
+    if (q && !(`${b.company_id} ${b.sector} ${b.loan_type}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  // Apply client-side sort
+  rows = rows.slice().sort((a, b) => {
+    const av = a[sortCol], bv = b[sortCol];
+    if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+    return sortDir * ((av ?? 0) - (bv ?? 0));
+  });
+  const tb = $('borrower-tbody');
+  if (!rows.length) {
+    tb.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-tertiary)">No borrowers match this filter.</td></tr>`;
+  } else {
+    tb.innerHTML = rows.map(b => {
+      const m = band(b.risk_band);
+      // Use EL from API (accurate LGD per sector); fall back to estimate if absent
+      const elVal = b.expected_loss != null ? b.expected_loss : (b.pd * b.outstanding_loan * 0.45);
+      const score = b.risk_score != null ? b.risk_score : Math.round(b.pd * 100);
+      const active = b.company_id === currentCompany ? ' row-active' : '';
+      return `<tr class="risk-${m.cls}${active}" onclick="loadDossier('${esc(b.company_id)}')" style="cursor:pointer">
+        <td>
+          <div class="borrower-name">${esc(b.company_id)}</div>
+          <div class="borrower-meta">${esc(b.sector)} · ${esc(b.loan_type || 'Term Loan')}</div>
+        </td>
+        <td>
+          <div class="score-bar">
+            <span class="score-num" style="color:${m.color}">${score}</span>
+            <div class="score-track"><div class="score-fill ${m.cls}" style="width:${score}%"></div></div>
+          </div>
+        </td>
+        <td><span class="pd-value ${m.cls}">${(b.pd * 100).toFixed(1)}%</span></td>
+        <td><span class="currency-val">${money(b.outstanding_loan)}</span></td>
+        <td><span class="currency-val" style="color:${m.color};font-weight:600">${money(elVal)}</span></td>
+        <td><span class="risk-badge ${m.cls}">${m.label}</span></td>
+        <td><button class="link-action ${b.company_id === currentCompany ? 'active' : ''}">${b.company_id === currentCompany ? 'Viewing ✓' : 'Open →'}</button></td>
+      </tr>`;
+    }).join('');
+  }
+  const pi = document.getElementById('pagination-info');
+  if (pi) pi.textContent = rows.length < allBorrowers.length ? `Filtered: ${rows.length} of ${allBorrowers.length.toLocaleString()} borrowers` : '';
+  $('table-count').textContent = `Showing ${rows.length} of ${allBorrowers.length.toLocaleString()} borrowers`;
+}
+
+/* ---------- dossier (right panel) ---------- */
+async function loadDossier(company_id) {
+  currentCompany = company_id;
+  // Show loading state immediately
+  $('dos-name').textContent = 'Loading…';
+  $('dos-pd').textContent = '—';
+  $('dos-trend').textContent = 'Fetching data…';
+  renderTable();   // update row-active highlight + button states right away
+  const enc = encodeURIComponent(company_id);
+  let det, shap;
+  try {
+    [det, shap] = await Promise.all([ api(`/borrowers/${enc}`), api(`/borrowers/${enc}/explain`) ]);
+  } catch (e) {
+    $('dos-name').textContent = 'Error loading dossier';
+    $('dos-trend').textContent = e.message;
+    console.error(e);
+    return;
+  }
+  renderTable();   // refresh row-active highlight (final update with Viewing ✓)
+
+  const m = band(det.risk_band);
+
+  // header
+  $('dos-name').textContent = det.company_id;
+  $('dos-chips').innerHTML = [
+    det.company_id, `MSME · ${det.sector}`, det.loan_type || 'Term Loan', `Exposure ${money(det.outstanding_loan)}`
+  ].map(c => `<span class="dossier-chip">${esc(c)}</span>`).join('');
+
+  // PD verdict
+  $('dos-pd').textContent = (det.current_pd * 100).toFixed(1) + '%';
+  const rising = det.risk_migration && det.risk_migration.end_band !== det.risk_migration.start_band;
+  $('dos-trend').textContent = rising ? '↑ Trending — intervention advised' : 'Stable trajectory';
+  const badge = $('dos-badge');
+  badge.style.background = m.pal.bg; badge.style.borderColor = m.pal.bd;
+  badge.innerHTML = `<span class="pd-badge-text" style="color:${m.pal.tx}">${m.badge.toUpperCase()}</span>`;
+
+  // PD trajectory bars (Jan–Jun observed, Jul–Dec projection)
+  $('dos-timeline').innerHTML = det.timeline.map((t, i) => {
+    const phase = i < 6 ? (i === 5 ? 'current' : 'observed') : 'forecast';
+    const h = Math.max(8, Math.round(t.pd * 100));
+    return `<div class="t-bar ${band(t.pd >= 0.75 ? 'Critical' : t.pd >= 0.5 ? 'High' : t.pd >= 0.2 ? 'Medium' : 'Low').t} ${phase}" style="height:${h}%"></div>`;
+  }).join('');
+
+  // expected loss
+  $('dos-el').innerHTML = money(det.expected_loss);
+  $('dos-el-pd').textContent = (det.current_pd * 100).toFixed(1) + '%';
+  $('dos-el-ead').innerHTML = money(det.outstanding_loan);
+  $('dos-el-lgd').textContent = Math.round(det.lgd_pct * 100) + '%';
+
+  // ── Explainable AI: plain-English summary + baseline bar + ranked drivers ──
+  renderShap(shap, det);
+
+  // action ladder
+  const prMap = { critical: 'p1', high: 'p1', medium: 'p2', routine: 'p3' };
+  const ladder = det.action_ladder || [];
+  $('dos-actions').innerHTML = ladder.map((a, i) =>
+    `<div class="action-item">
+      <div class="action-num ${prMap[a.priority] || 'p3'}">${i + 1}</div>
+      <div class="action-content">
+        <div class="action-title">${esc(a.action)}</div>
+        <div class="action-desc">${esc(a.detail)}</div>
+      </div>
+    </div>`).join('') || '<div style="font-size:11px;color:var(--text-tertiary)">No actions recommended.</div>';
+
+  // copilot intro — lead with the model's plain-English explanation
+  const intro = shap.summary
+    ? `${shap.summary} Projected expected loss is ${money(det.expected_loss)} (PD × EAD ${money(det.outstanding_loan)} × LGD ${Math.round(det.lgd_pct*100)}%). Ask me anything about this borrower.`
+    : `${det.company_id} is in the ${m.label} band with a 12-month PD of ${(det.current_pd*100).toFixed(1)}%. Ask me anything about this borrower.`;
+  resetChat(intro);
+}
+
+/* ---------- Explainable-AI renderer (SHAP → plain English) ---------- */
+function renderShap(shap, det) {
+  const el = $('dos-shap');
+  const drivers = shap.key_drivers || [];
+  if (!drivers.length) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--text-tertiary);padding:4px 0">No SHAP signal available.</div>';
+    return;
+  }
+  const basePct = shap.baseline ? (shap.baseline.probability * 100) : null;
+  const curPct  = (shap.current_pd != null ? shap.current_pd : det.current_pd) * 100;
+
+  // 1) plain-English summary
+  let html = shap.summary ? `<div class="xai-summary">${esc(shap.summary)}</div>` : '';
+
+  // 2) baseline → this-borrower bar (how far from the average MSME)
+  if (basePct != null) {
+    const b = Math.max(0, Math.min(100, basePct)), c = Math.max(0, Math.min(100, curPct));
+    html += `<div class="xai-baseline">
+      <div class="xai-base-labels">
+        <span>Model baseline ${b.toFixed(1)}%</span>
+        <span class="cur">This borrower ${c.toFixed(1)}%</span>
+      </div>
+      <div class="xai-base-track">
+        <div class="xai-base-fill cur"  style="width:${c}%"></div>
+        <div class="xai-base-fill base" style="width:${b}%"></div>
+        <div class="xai-base-marker" style="left:${b}%"></div>
+      </div>
+    </div>`;
+  }
+
+  // 3) ranked driver rows — direction, plain value, % of decision
+  const maxAbs = Math.max(1e-6, ...drivers.map(d => Math.abs(d.impact)));
+  const shown = drivers.slice(0, 8);
+  const row = d => {
+    const pos = d.impact >= 0, w = Math.round(Math.abs(d.impact) / maxAbs * 100);
+    const sign = pos ? '+' : '−';
+    const arrow = pos ? '▲' : '▼';
+    const sub = `${esc(d.value_display || (+d.value).toFixed(2))} · ${d.contribution_pct}% of decision`;
+    const tip = `${esc(d.narrative || '')}${d.benchmark ? '  ('+esc(d.benchmark)+')' : ''}`;
+    return `<div class="shap-row" title="${tip}">
+      <div class="shap-rank">${drivers.indexOf(d) + 1}</div>
+      <div class="shap-name">${esc(d.label || prettyFeat(d.feature))}
+        <span class="shap-dir ${pos?'':'neg'}" style="color:${pos?'var(--critical-text)':'var(--safe-text)'}">${arrow} ${pos?'raises':'lowers'}</span>
+        <span class="shap-sub">${sub}</span>
+      </div>
+      <div class="shap-track"><div class="shap-fill ${pos ? 'pos' : 'neg'}" style="width:${w}%"></div></div>
+      <div class="shap-val ${pos ? 'pos' : 'neg'}">${sign}${Math.abs(d.impact).toFixed(2)}</div>
+    </div>`;
+  };
+  html += shown.map(row).join('');
+
+  // 4) legend
+  html += `<div style="font-size:10px;color:var(--text-tertiary);margin-top:8px;line-height:1.5">
+    Values are SHAP log-odds contributions from the XGBoost model.
+    <span style="color:var(--critical-text)">▲ red</span> pushes default risk up,
+    <span style="color:var(--safe-text)">▼ green</span> pulls it down. Hover a row for the full read + portfolio benchmark.</div>`;
+
+  el.innerHTML = html;
+}
+
+function prettyFeat(f) {
+  const base = String(f).replace(/^(num__|cat__)/, '');           // strip pipeline prefix
+  const map = { loan_percent_income:'Loan % of Income', cb_person_cred_hist_length:'Credit History Len.',
+    note_stress_index:'NLP Stress Index', loan_int_rate:'Interest Rate', person_home_ownership:'Home Ownership',
+    home_ownership:'Home Ownership', loan_intent:'Loan Intent', person_income:'Annual Income',
+    loan_amnt:'Loan Amount', person_age:'Applicant Age', person_emp_length:'Employment Len.' };
+  if (map[base]) return map[base];
+  const us = base.lastIndexOf('_');                                // one-hot e.g. loan_intent_PERSONAL
+  if (us > 0) { const stem = base.slice(0, us), val = base.slice(us + 1);
+    if (map[stem]) return `${map[stem]}: ${val}`; }
+  return base.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/* ---------- copilot ---------- */
+function chatMsg(role, text) {
+  const wrap = $('copilot-chat');
+  const ai = role === 'ai';
+  const div = document.createElement('div');
+  div.className = `chat-msg ${ai ? 'ai-msg' : 'user-msg'}`;
+  div.innerHTML = `<div class="chat-avatar ${ai ? 'ai' : 'user'}">${ai ? '✦' : 'KS'}</div>`
+    + `<div class="chat-bubble">${esc(text)}</div>`;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div.querySelector('.chat-bubble');
+}
+function resetChat(intro) { $('copilot-chat').innerHTML = ''; chatMsg('ai', intro); }
+
+async function askCopilot() {
+  const input = $('copilot-input');
+  const q = input.value.trim();
+  if (!q) return;
+  chatMsg('user', q);
+  input.value = '';
+  const bubble = chatMsg('ai', 'Thinking…');
+  try {
+    const body = { question: q };
+    if (currentCompany) body.company_id = currentCompany;
+    const data = await api('/copilot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    bubble.textContent = data.answer;
+  } catch (e) { bubble.textContent = 'Error: ' + e.message; }
+}
+
+/* ---------- new loans / reset / upload ---------- */
+async function refreshPortfolio() {
+  const btn = $('refresh-btn'); btn.disabled = true;
+  try {
+    const data = await api('/refresh?count=10', { method: 'POST' });
+    await Promise.all([loadPortfolio(), loadBorrowers()]);
+    alert(`✓ ${data.added} new borrowers onboarded (now ${data.total_borrowers}).\n`
+      + `${data.new_high_risk} flagged high-risk · avg PD ${(data.new_avg_pd*100).toFixed(1)}%`);
+  } catch (e) { alert('New Loans error: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function resetPortfolio() {
+  try {
+    await api('/reset', { method: 'POST' });
+    await Promise.all([loadPortfolio(), loadBorrowers()]);
+    if (allBorrowers.length) loadDossier(allBorrowers[0].company_id);
+  } catch (e) { alert('Reset error: ' + e.message); }
+}
+
+function onFilePicked(input) {
+  const f = input.files[0];
+  $('upload-title').textContent = f ? f.name : 'Drop your CSV file here';
+  $('upload-desc').textContent = f ? `${(f.size/1024).toFixed(0)} KB · ready to upload` : 'Or click Browse to select from your system';
+}
+
+async function uploadPortfolio() {
+  const input = $('csv-input');
+  const f = input.files[0];
+  if (!f) { input.click(); return; }
+  const btn = $('upload-btn'); btn.disabled = true; const prev = btn.textContent; btn.textContent = 'Uploading…';
+  try {
+    const fd = new FormData(); fd.append('file', f);
+    const data = await api('/upload', { method: 'POST', body: fd });
+    await Promise.all([loadPortfolio(), loadBorrowers()]);
+    if (allBorrowers.length) loadDossier(allBorrowers[0].company_id);
+    alert(`✓ Uploaded ${data.filename}\n${data.borrowers_scored} borrowers scored · avg PD ${(data.avg_pd*100).toFixed(1)}% · ${data.high_risk_count} high-risk`);
+    $('upload-title').textContent = 'Drop your CSV file here';
+    $('upload-desc').textContent = 'Or click Browse to select from your system';
+  } catch (e) { alert('Upload error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = prev; input.value = ''; }
+}
+
+/* ============================================================
+   SIDEBAR NAVIGATION  —  every module is functional
+   ============================================================ */
+const VIEW_TITLES = {
+  overview:'Portfolio Overview', borrowers:'Borrowers', trends:'Risk Trends',
+  warnings:'Early Warnings', shap:'SHAP Explainer', performance:'Model Performance',
+  eloss:'Expected Loss', upload:'Upload Portfolio'
+};
+const NAV_MAP = [
+  ['Portfolio Overview','overview'], ['Borrowers','borrowers'], ['Risk Trends','trends'],
+  ['Early Warnings','warnings'], ['SHAP Explainer','shap'], ['Model Performance','performance'],
+  ['Expected Loss','eloss'], ['Upload Portfolio','upload']
+];
+
+function attachNav() {
+  document.querySelectorAll('.nav-item').forEach(n => {
+    const label = n.textContent.trim();
+    const found = NAV_MAP.find(([l]) => label.startsWith(l));
+    if (found) { n.style.cursor = 'pointer'; n.onclick = () => navTo(found[1]); }
+  });
+}
+function setActiveNav(label) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.textContent.trim().startsWith(label)));
+}
+function setBreadcrumb(t) { const el = document.querySelector('.breadcrumb-current'); if (el) el.textContent = t; }
+function showOverview(show) {
+  $('metrics-row').style.display = show ? '' : 'none';
+  $('content-columns').style.display = show ? '' : 'none';
+  $('analytics-view').style.display = show ? 'none' : '';
+}
+function scrollToEl(id) { const el = $(id); if (el) el.scrollIntoView({ behavior:'smooth', block:'center' }); }
+function setFilterChip(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  renderTable();
+}
+// Bridge: filter chips in HTML call setFilter(el, f)
+function setFilter(el, f) { setFilterChip(f); }
+
+function navTo(view) {
+  currentView = view;
+  if (view === 'performance') { location.href = '/dashboard/evaluation_report.html'; return; }
+  setBreadcrumb(VIEW_TITLES[view]); setActiveNav(VIEW_TITLES[view]);
+
+  if (view === 'trends')  { showOverview(false); renderTrends();        window.scrollTo({top:0,behavior:'smooth'}); return; }
+  if (view === 'eloss')   { showOverview(false); renderExpectedLoss();  window.scrollTo({top:0,behavior:'smooth'}); return; }
+
+  showOverview(true);   // overview-family
+  if (view === 'borrowers')      { setFilterChip('all'); scrollToEl('borrower-tbody'); $('borrower-search').focus(); }
+  else if (view === 'warnings')  { currentFilter = 'warnings';
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); renderTable(); scrollToEl('borrower-tbody'); }
+  else if (view === 'shap')      { if (!currentCompany && allBorrowers.length) loadDossier(allBorrowers[0].company_id); scrollToEl('dos-shap'); }
+  else if (view === 'upload')    { scrollToEl('upload-card'); }
+  else                           { window.scrollTo({top:0,behavior:'smooth'}); }   // overview
+}
+
+const pdBand = pd => pd >= 0.75 ? 'Critical' : pd >= 0.5 ? 'High' : pd >= 0.2 ? 'Medium' : 'Low';
+
+/* ---------- Risk Trends view ---------- */
+function renderTrends() {
+  const p = portfolioData;
+  if (!p) { $('analytics-view').innerHTML = '<div class="card">Loading…</div>'; return; }
+  const d = p.risk_distribution || {}, bands = ['Low','Medium','High','Critical'];
+  const total = bands.reduce((s,b) => s + (d[b]||0), 0) || 1;
+  const dist = bands.map(b => {
+    const m = band(b), n = d[b]||0, pct = n/total*100;
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:5px">
+        <span class="risk-badge ${m.cls}">${m.label}</span>
+        <span style="font-weight:600;color:${m.color}">${n.toLocaleString()} · ${pct.toFixed(1)}%</span>
+      </div>
+      <div class="score-track" style="width:100%; height:4px;"><div class="score-fill ${m.cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+  const sectors = (p.sector_analytics||[]).slice().sort((a,b) => b.avg_pd - a.avg_pd);
+  const maxPd = Math.max(...sectors.map(s => s.avg_pd), 0.01);
+  const sec = sectors.map(s => {
+    const m = band(pdBand(s.avg_pd));
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+      <span style="width:140px;font-size:12px;font-weight:500;flex-shrink:0">${esc(s.sector)}</span>
+      <div class="score-track" style="flex:1; width:auto; height:4px;"><div class="score-fill ${m.cls}" style="width:${(s.avg_pd/maxPd*100).toFixed(0)}%"></div></div>
+      <span style="width:52px;text-align:right;font-size:12px;font-weight:600;color:${m.color}">${(s.avg_pd*100).toFixed(1)}%</span>
+      <span style="width:64px;text-align:right;font-size:11px;color:var(--text-tertiary)">${s.borrower_count} br</span>
+    </div>`;
+  }).join('');
+  $('analytics-view').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><div><div class="card-title">Risk Band Distribution</div>
+        <div class="card-sub">${total.toLocaleString()} borrowers across risk tiers</div></div></div>
+      ${dist}
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Sector Risk Heatmap</div>
+        <div class="card-sub">Average 12-month PD by sector — highest first</div></div></div>
+      ${sec}
+    </div>`;
+}
+
+/* ---------- Expected Loss view ---------- */
+function renderExpectedLoss() {
+  const p = portfolioData;
+  if (!p) { $('analytics-view').innerHTML = '<div class="card">Loading…</div>'; return; }
+  const sectors = (p.sector_analytics||[]).slice().sort((a,b) => b.expected_loss - a.expected_loss);
+  const maxEl = Math.max(...sectors.map(s => s.expected_loss), 1);
+  const rows = sectors.map(s => `
+    <tr>
+      <td><div class="borrower-name">${esc(s.sector)}</div><div class="borrower-meta">${s.borrower_count} borrowers</div></td>
+      <td><span class="currency-val">${money(s.exposure)}</span></td>
+      <td><span class="pd-value ${band(pdBand(s.avg_pd)).cls}">${(s.avg_pd*100).toFixed(1)}%</span></td>
+      <td style="min-width:130px"><div class="score-track" style="width:100%; height:4px;"><div class="score-fill critical" style="width:${(s.expected_loss/maxEl*100).toFixed(0)}%"></div></div></td>
+      <td><span class="currency-val" style="color:var(--critical-text);font-weight:600">${money(s.expected_loss)}</span></td>
+    </tr>`).join('');
+  $('analytics-view').innerHTML = `
+    <div class="metrics-row" style="margin-bottom:16px">
+      <div class="metric-card amber"><div class="metric-label">Total Expected Loss</div><div class="metric-value">${money(p.total_expected_loss)}</div><div class="metric-delta neu">PD × EAD × LGD</div></div>
+      <div class="metric-card blue"><div class="metric-label">Total Exposure</div><div class="metric-value">${money(p.total_exposure)}</div><div class="metric-delta neu">EAD across book</div></div>
+      <div class="metric-card red"><div class="metric-label">Portfolio Loss Rate</div><div class="metric-value">${(p.total_expected_loss/Math.max(1,p.total_exposure)*100).toFixed(1)} <span class="unit">%</span></div><div class="metric-delta neu">EL ÷ Exposure</div></div>
+      <div class="metric-card green"><div class="metric-label">Average PD</div><div class="metric-value">${(p.avg_pd*100).toFixed(1)} <span class="unit">%</span></div><div class="metric-delta neu">portfolio mean</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">Expected Loss by Sector</div>
+        <div class="card-sub">EL = PD × EAD × LGD · ranked by contribution</div></div></div>
+      <table class="data-table">
+        <thead><tr><th>Sector</th><th>Exposure</th><th>Avg PD</th><th>EL Share</th><th>Expected Loss</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function updateStatusTime() {
+  const el = $('status-time');
+  if (!el) return;
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const pad = n => String(n).padStart(2, '0');
+  el.textContent = `Last inference: ${pad(ist.getHours())}:${pad(ist.getMinutes())}:${pad(ist.getSeconds())} IST`;
+}
+setInterval(updateStatusTime, 1000);
+init();
+</script>
+</body>
+</html>

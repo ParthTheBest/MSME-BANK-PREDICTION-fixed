@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IDBI Risk Engine — Credit Intelligence</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 
 /* ============================================================
@@ -2174,6 +2175,8 @@ function renderTrends() {
   if (!p) { $('analytics-view').innerHTML = '<div class="card">Loading…</div>'; return; }
   const d = p.risk_distribution || {}, bands = ['Low','Medium','High','Critical'];
   const total = bands.reduce((s,b) => s + (d[b]||0), 0) || 1;
+  const sectors = (p.sector_analytics||[]).slice().sort((a,b) => b.avg_pd - a.avg_pd);
+
   const dist = bands.map(b => {
     const m = band(b), n = d[b]||0, pct = n/total*100;
     return `<div style="margin-bottom:12px">
@@ -2184,7 +2187,7 @@ function renderTrends() {
       <div class="score-track" style="width:100%; height:4px;"><div class="score-fill ${m.cls}" style="width:${pct}%"></div></div>
     </div>`;
   }).join('');
-  const sectors = (p.sector_analytics||[]).slice().sort((a,b) => b.avg_pd - a.avg_pd);
+
   const maxPd = Math.max(...sectors.map(s => s.avg_pd), 0.01);
   const sec = sectors.map(s => {
     const m = band(pdBand(s.avg_pd));
@@ -2195,17 +2198,169 @@ function renderTrends() {
       <span style="width:64px;text-align:right;font-size:11px;color:var(--text-tertiary)">${s.borrower_count} br</span>
     </div>`;
   }).join('');
+
   $('analytics-view').innerHTML = `
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-header"><div><div class="card-title">Risk Band Distribution</div>
-        <div class="card-sub">${total.toLocaleString()} borrowers across risk tiers</div></div></div>
-      ${dist}
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px; margin-bottom: 16px;">
+      <div class="card" style="padding: 20px;">
+        <div class="card-header" style="margin-bottom: 15px;">
+          <div>
+            <div class="card-title" style="font-size: 15px; font-weight: 600;">Risk Band Distribution (Interactive)</div>
+            <div class="card-sub" style="font-size: 12px; color: var(--text-tertiary);">${total.toLocaleString()} active borrowers</div>
+          </div>
+        </div>
+        <div style="height: 250px; display: flex; justify-content: center; align-items: center;">
+          <canvas id="chart-risk-dist"></canvas>
+        </div>
+      </div>
+      
+      <div class="card" style="padding: 20px;">
+        <div class="card-header" style="margin-bottom: 15px;">
+          <div>
+            <div class="card-title" style="font-size: 15px; font-weight: 600;">Sector Risk Profile (Interactive)</div>
+            <div class="card-sub" style="font-size: 12px; color: var(--text-tertiary);">Average 12-month Default Probability (PD)</div>
+          </div>
+        </div>
+        <div style="height: 250px;">
+          <canvas id="chart-sector-pd"></canvas>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-header"><div><div class="card-title">Sector Risk Heatmap</div>
-        <div class="card-sub">Average 12-month PD by sector — highest first</div></div></div>
-      ${sec}
+    
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px;">
+      <div class="card" style="padding: 20px;">
+        <div class="card-header" style="margin-bottom: 15px;">
+          <div>
+            <div class="card-title" style="font-size: 15px; font-weight: 600;">Risk Band Distribution (Classic)</div>
+            <div class="card-sub" style="font-size: 12px; color: var(--text-tertiary);">${total.toLocaleString()} borrowers across risk tiers</div>
+          </div>
+        </div>
+        ${dist}
+      </div>
+      
+      <div class="card" style="padding: 20px;">
+        <div class="card-header" style="margin-bottom: 15px;">
+          <div>
+            <div class="card-title" style="font-size: 15px; font-weight: 600;">Sector Risk Heatmap (Classic)</div>
+            <div class="card-sub" style="font-size: 12px; color: var(--text-tertiary);">Average 12-month PD by sector — highest first</div>
+          </div>
+        </div>
+        ${sec}
+      </div>
     </div>`;
+
+  setTimeout(() => {
+    try {
+      if (window.myTrendCharts) {
+        window.myTrendCharts.forEach(c => { if (c) c.destroy(); });
+      }
+      window.myTrendCharts = [];
+
+      const distCtx = document.getElementById('chart-risk-dist').getContext('2d');
+      const pdCtx = document.getElementById('chart-sector-pd').getContext('2d');
+
+      const bandCounts = bands.map(b => d[b] || 0);
+
+      const bandColors = [
+        'rgba(22, 163, 74, 0.85)',   
+        'rgba(2, 132, 199, 0.85)',   
+        'rgba(245, 158, 11, 0.85)',  
+        'rgba(239, 68, 68, 0.85)'    
+      ];
+      const bandBorders = [
+        '#16A34A', '#0284C7', '#f59e0b', '#ef4444'
+      ];
+
+      const riskDistChart = new Chart(distCtx, {
+        type: 'pie',
+        data: {
+          labels: bands,
+          datasets: [{
+            data: bandCounts,
+            backgroundColor: bandColors,
+            borderColor: bandBorders,
+            borderWidth: 1.5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 10,
+                font: { family: 'Inter', size: 10 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw;
+                  const pct = (val / total * 100).toFixed(1) + '%';
+                  return context.label + ': ' + val.toLocaleString() + ' (' + pct + ')';
+                }
+              }
+            }
+          }
+        }
+      });
+      window.myTrendCharts.push(riskDistChart);
+
+      const sectorLabels = sectors.map(s => s.sector);
+      const sectorPds = sectors.map(s => s.avg_pd * 100);
+      const sectorColors = sectors.map(s => {
+        const pd = s.avg_pd;
+        if (pd < 0.20) return 'rgba(22, 163, 74, 0.8)';
+        if (pd < 0.50) return 'rgba(59, 130, 246, 0.8)';
+        if (pd < 0.75) return 'rgba(245, 158, 11, 0.8)';
+        return 'rgba(239, 68, 68, 0.8)';
+      });
+
+      const sectorPdChart = new Chart(pdCtx, {
+        type: 'bar',
+        data: {
+          labels: sectorLabels,
+          datasets: [{
+            data: sectorPds,
+            backgroundColor: sectorColors,
+            borderRadius: 4,
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'Avg PD: ' + context.raw.toFixed(1) + '%';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { font: { family: 'Inter', size: 10 } },
+              grid: { display: false }
+            },
+            y: {
+              ticks: {
+                callback: function(value) { return value + '%'; },
+                font: { family: 'Inter', size: 9 }
+              },
+              grid: { color: '#E2E8F0', borderDash: [4, 4] }
+            }
+          }
+        }
+      });
+      window.myTrendCharts.push(sectorPdChart);
+
+    } catch (e) {
+      console.error("Failed to render Risk Trends charts:", e);
+    }
+  }, 50);
 }
 
 /* ---------- Expected Loss view ---------- */
@@ -2222,6 +2377,7 @@ function renderExpectedLoss() {
       <td style="min-width:130px"><div class="score-track" style="width:100%; height:4px;"><div class="score-fill critical" style="width:${(s.expected_loss/maxEl*100).toFixed(0)}%"></div></div></td>
       <td><span class="currency-val" style="color:var(--critical-text);font-weight:600">${money(s.expected_loss)}</span></td>
     </tr>`).join('');
+
   $('analytics-view').innerHTML = `
     <div class="metrics-row" style="margin-bottom:16px">
       <div class="metric-card amber"><div class="metric-label">Total Expected Loss</div><div class="metric-value">${money(p.total_expected_loss)}</div><div class="metric-delta neu">PD × EAD × LGD</div></div>
@@ -2229,6 +2385,33 @@ function renderExpectedLoss() {
       <div class="metric-card red"><div class="metric-label">Portfolio Loss Rate</div><div class="metric-value">${(p.total_expected_loss/Math.max(1,p.total_exposure)*100).toFixed(1)} <span class="unit">%</span></div><div class="metric-delta neu">EL ÷ Exposure</div></div>
       <div class="metric-card green"><div class="metric-label">Average PD</div><div class="metric-value">${(p.avg_pd*100).toFixed(1)} <span class="unit">%</span></div><div class="metric-delta neu">portfolio mean</div></div>
     </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px; margin-bottom: 16px;">
+      <div class="card" style="padding: 20px;">
+        <div class="card-header" style="margin-bottom: 15px;">
+          <div>
+            <div class="card-title" style="font-size: 15px; font-weight: 600;">Expected Loss Contribution</div>
+            <div class="card-sub" style="font-size: 12px; color: var(--text-tertiary);">Sector-wise risk share of total EL</div>
+          </div>
+        </div>
+        <div style="height: 250px; display: flex; justify-content: center; align-items: center;">
+          <canvas id="chart-el-share"></canvas>
+        </div>
+      </div>
+      
+      <div class="card" style="padding: 20px;">
+        <div class="card-header" style="margin-bottom: 15px;">
+          <div>
+            <div class="card-title" style="font-size: 15px; font-weight: 600;">Exposure vs. Expected Loss</div>
+            <div class="card-sub" style="font-size: 12px; color: var(--text-tertiary);">Comparing Outstanding Exposure (EAD) & Expected Loss (EL) in INR</div>
+          </div>
+        </div>
+        <div style="height: 300px;">
+          <canvas id="chart-el-comparison"></canvas>
+        </div>
+      </div>
+    </div>
+    
     <div class="card">
       <div class="card-header"><div><div class="card-title">Expected Loss by Sector</div>
         <div class="card-sub">EL = PD × EAD × LGD · ranked by contribution</div></div></div>
@@ -2237,6 +2420,133 @@ function renderExpectedLoss() {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+
+  setTimeout(() => {
+    try {
+      if (window.myElCharts) {
+        window.myElCharts.forEach(c => { if (c) c.destroy(); });
+      }
+      window.myElCharts = [];
+
+      const shareCtx = document.getElementById('chart-el-share').getContext('2d');
+      const compCtx = document.getElementById('chart-el-comparison').getContext('2d');
+
+      const sectorLabels = sectors.map(s => s.sector);
+      const sectorEl = sectors.map(s => s.expected_loss);
+      const sectorExp = sectors.map(s => s.exposure);
+
+      const colors = [
+        'rgba(239, 68, 68, 0.85)',   
+        'rgba(245, 158, 11, 0.85)',  
+        'rgba(59, 130, 246, 0.85)',  
+        'rgba(16, 185, 129, 0.85)',  
+        'rgba(139, 92, 246, 0.85)',  
+        'rgba(236, 72, 153, 0.85)'   
+      ];
+      const borderColors = [
+        '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec7217'
+      ];
+
+      const elShareChart = new Chart(shareCtx, {
+        type: 'pie',
+        data: {
+          labels: sectorLabels,
+          datasets: [{
+            data: sectorEl,
+            backgroundColor: colors.slice(0, sectorLabels.length),
+            borderColor: borderColors.slice(0, sectorLabels.length),
+            borderWidth: 1.5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 10,
+                font: { family: 'Inter', size: 10 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw;
+                  const total = context.dataset.data.reduce((a,b) => a+b, 0);
+                  const pct = (val / total * 100).toFixed(1) + '%';
+                  return context.label + ': ₹' + Math.round(val).toLocaleString() + ' (' + pct + ')';
+                }
+              }
+            }
+          }
+        }
+      });
+      window.myElCharts.push(elShareChart);
+
+      const elCompChart = new Chart(compCtx, {
+        type: 'bar',
+        data: {
+          labels: sectorLabels,
+          datasets: [
+            {
+              label: 'Outstanding Exposure (EAD)',
+              data: sectorExp,
+              backgroundColor: 'rgba(59, 130, 246, 0.8)',
+              borderColor: '#3b82f6',
+              borderWidth: 1,
+              borderRadius: 4
+            },
+            {
+              label: 'Expected Loss (EL)',
+              data: sectorEl,
+              backgroundColor: 'rgba(239, 68, 68, 0.8)',
+              borderColor: '#ef4444',
+              borderWidth: 1,
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { boxWidth: 10, font: { family: 'Inter', size: 10 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ₹' + Math.round(context.raw).toLocaleString();
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { font: { family: 'Inter', size: 10 } },
+              grid: { display: false }
+            },
+            y: {
+              ticks: {
+                callback: function(value) {
+                  if (value >= 100000) return '₹' + (value/100000).toFixed(1) + 'L';
+                  return '₹' + value;
+                },
+                font: { family: 'Inter', size: 9 }
+              },
+              grid: { color: '#E2E8F0', borderDash: [4, 4] }
+            }
+          }
+        }
+      });
+      window.myElCharts.push(elCompChart);
+
+    } catch (e) {
+      console.error("Failed to render Expected Loss charts:", e);
+    }
+  }, 50);
 }
 
 function updateStatusTime() {

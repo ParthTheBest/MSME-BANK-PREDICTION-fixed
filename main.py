@@ -6,7 +6,7 @@ with MSME behavioral feature overlays.
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, UploadFile, File, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import pandas as pd
@@ -25,13 +25,277 @@ except ImportError:
 import nlp_features  # unstructured-data (officer notes) → note_stress_index
 
 
+import sqlite3
+import asyncio
+import datetime
+from fastapi import WebSocket, WebSocketDisconnect
+
+DB_PATH = "msme_risk.db"
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS borrowers (
+        company_id TEXT PRIMARY KEY,
+        sector TEXT,
+        loan_type TEXT,
+        outstanding_loan REAL,
+        officer_notes TEXT,
+        journey_events TEXT
+    );
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS online_features (
+        company_id TEXT PRIMARY KEY,
+        revolving_utilization REAL,
+        debt_ratio REAL,
+        income_stability REAL,
+        gst_compliance_score REAL,
+        cashflow_stress_ratio REAL,
+        working_capital_usage REAL,
+        revenue_trend_index REAL,
+        payment_history_score REAL,
+        supplier_payment_risk REAL,
+        note_stress_index REAL,
+        late_30_59 INTEGER,
+        late_60_89 INTEGER,
+        late_90_days INTEGER,
+        open_credit_lines INTEGER,
+        real_estate_loans INTEGER,
+        num_dependents INTEGER,
+        emi_delay_count INTEGER,
+        risk_probability REAL,
+        risk_band TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(company_id) REFERENCES borrowers(company_id) ON DELETE CASCADE
+    );
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS events_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id TEXT,
+        event_type TEXT,
+        payload TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    conn.commit()
+    conn.close()
+
+def load_feature_df() -> pd.DataFrame:
+    conn = get_db_connection()
+    query = """
+    SELECT b.company_id, b.sector, b.loan_type, b.outstanding_loan, b.officer_notes, b.journey_events,
+           f.revolving_utilization, f.debt_ratio, f.income_stability, f.gst_compliance_score,
+           f.cashflow_stress_ratio, f.working_capital_usage, f.revenue_trend_index, f.payment_history_score,
+           f.supplier_payment_risk, f.note_stress_index, f.late_30_59, f.late_60_89, f.late_90_days,
+           f.open_credit_lines, f.real_estate_loans, f.num_dependents, f.emi_delay_count,
+           f.risk_probability, f.risk_band
+    FROM borrowers b
+    JOIN online_features f ON b.company_id = f.company_id
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+event_stream_queue = asyncio.Queue()
+
+async def streaming_consumer_worker():
+    print("Starting background stream processor worker...")
+    while True:
+        try:
+            event = await event_stream_queue.get()
+            company_id = event.get("company_id")
+            event_type = event.get("event_type")
+            payload = event.get("payload", {})
+            
+            print(f"Stream Processor: Ingesting event {event_type} for borrower {company_id}")
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+            INSERT INTO events_log (company_id, event_type, payload)
+            VALUES (?, ?, ?)
+            """, (company_id, event_type, json.dumps(payload)))
+            conn.commit()
+            
+            cursor.execute("SELECT * FROM borrowers WHERE company_id = ?", (company_id,))
+            borrower = cursor.fetchone()
+            if not borrower:
+                print(f"Stream Processor Error: Borrower {company_id} not found in database.")
+                conn.close()
+                event_stream_queue.task_done()
+                continue
+                
+            cursor.execute("SELECT * FROM online_features WHERE company_id = ?", (company_id,))
+            features_row = cursor.fetchone()
+            if not features_row:
+                print(f"Stream Processor Error: Features for {company_id} not found.")
+                conn.close()
+                event_stream_queue.task_done()
+                continue
+            features = dict(features_row)
+            
+            updated_fields = {}
+            journey_events = json.loads(borrower["journey_events"] or "[]")
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            
+            if event_type == "transaction":
+                util = payload.get("revolving_utilization")
+                cf = payload.get("cashflow_stress_ratio")
+                if util is not None:
+                    updated_fields["revolving_utilization"] = float(np.clip(util, 0.01, 0.99))
+                if cf is not None:
+                    updated_fields["cashflow_stress_ratio"] = float(np.clip(cf, 0.0, 5.0))
+                if util is not None and util > 0.85:
+                    journey_events.append({
+                        "date": now_str,
+                        "type": "warning",
+                        "desc": f"Critical credit utilization spike: {util*100:.0f}%"
+                    })
+                    
+            elif event_type == "gst_filing":
+                score = payload.get("gst_compliance_score")
+                if score is not None:
+                    updated_fields["gst_compliance_score"] = float(np.clip(score, 0.0, 1.0))
+                status = "on-time" if score > 0.8 else "delayed"
+                journey_events.append({
+                    "date": now_str,
+                    "type": "ok" if score > 0.8 else "warning",
+                    "desc": f"GST compliance update: {status} filing (Score: {score:.2f})"
+                })
+                
+            elif event_type == "emi_payment":
+                emi_delay = payload.get("emi_delay_count")
+                pay_score = payload.get("payment_history_score")
+                status = payload.get("status", "paid")
+                if emi_delay is not None:
+                    updated_fields["emi_delay_count"] = int(emi_delay)
+                if pay_score is not None:
+                    updated_fields["payment_history_score"] = float(np.clip(pay_score, 0.0, 1.0))
+                if status == "delayed":
+                    journey_events.append({
+                        "date": now_str,
+                        "type": "alert",
+                        "desc": f"EMI payment delayed (Total Delays: {emi_delay})"
+                    })
+                else:
+                    journey_events.append({
+                        "date": now_str,
+                        "type": "ok",
+                        "desc": f"EMI installment paid successfully"
+                    })
+                    
+            elif event_type == "officer_note":
+                note = payload.get("officer_notes")
+                if note:
+                    cursor.execute("UPDATE borrowers SET officer_notes = ? WHERE company_id = ?", (note, company_id))
+                    from nlp_features import stress_index
+                    note_stress = float(stress_index([note])[0])
+                    updated_fields["note_stress_index"] = note_stress
+                    journey_events.append({
+                        "date": now_str,
+                        "type": "info",
+                        "desc": f"New credit officer review note added (NLP stress score: {note_stress:.2f})"
+                    })
+                    
+            if updated_fields:
+                for k, v in updated_fields.items():
+                    features[k] = v
+                
+                model_input = {f: features[f] for f in FEATURES}
+                new_pd = predict_pd(model_input)
+                new_band = get_risk_band(new_pd)
+                
+                old_band = features["risk_band"]
+                
+                set_clause = ", ".join([f"{k} = ?" for k in updated_fields.keys()])
+                params = list(updated_fields.values())
+                
+                cursor.execute(f"""
+                UPDATE online_features
+                SET {set_clause}, risk_probability = ?, risk_band = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE company_id = ?
+                """, params + [new_pd, new_band, company_id])
+                
+                cursor.execute("""
+                UPDATE borrowers
+                SET journey_events = ?
+                WHERE company_id = ?
+                """, (json.dumps(journey_events), company_id))
+                
+                conn.commit()
+                
+                broadcast_msg = {
+                    "company_id": company_id,
+                    "event_type": event_type,
+                    "old_band": old_band,
+                    "new_pd": new_pd,
+                    "new_band": new_band,
+                    "timestamp": now_str,
+                    "alert": f"Borrower {company_id} risk updated to {new_band} (PD: {new_pd*100:.1f}%)"
+                }
+                await manager.broadcast(broadcast_msg)
+                print(f"Broadcasted risk update for {company_id}: {new_band}")
+                
+            conn.close()
+            event_stream_queue.task_done()
+        except asyncio.CancelledError:
+            print("Background stream processor worker cancelled.")
+            break
+        except Exception as e:
+            print(f"Stream Processor Loop Error: {e}")
+            await asyncio.sleep(1.0)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_assets()          # load model + build portfolio on startup
+    load_assets()
+    worker_task = asyncio.create_task(streaming_consumer_worker())
     yield
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="MSME Risk Intelligence API", lifespan=lifespan)
+
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    if request.url.path.startswith("/dashboard") or request.url.path == "/dashboard":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 app.mount("/dashboard", StaticFiles(directory="static", html=True), name="static")
 # Model-evaluation charts (ROC/PR curves, confusion matrices, dashboards) —
 # the Model Performance module loads these from /reports.
@@ -42,7 +306,6 @@ xgb_model   = None
 explainer   = None
 imputer     = None
 calibrator  = None   # Isotonic calibration layer (loaded alongside xgb_model)
-feature_df  = None  # Synthetic MSME borrower portfolio
 FEATURES    = None
 
 # ─── Sector LGD (Loss Given Default) ────────────────────────
@@ -511,22 +774,62 @@ def _derive_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def seed_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM borrowers")
+    count = cursor.fetchone()[0]
+    if count == 0:
+        print("Seeding database with default MSME borrowers...")
+        df = build_portfolio()
+        probs = predict_portfolio(df)
+        df['risk_probability'] = probs
+        df['risk_band'] = df['risk_probability'].apply(get_risk_band)
+        
+        for _, row in df.iterrows():
+            cursor.execute("""
+            INSERT OR REPLACE INTO borrowers (company_id, sector, loan_type, outstanding_loan, officer_notes, journey_events)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                row['company_id'], row['sector'], row['loan_type'], float(row['outstanding_loan']),
+                row['officer_notes'], row['journey_events']
+            ))
+            cursor.execute("""
+            INSERT OR REPLACE INTO online_features (
+                company_id, revolving_utilization, debt_ratio, income_stability, gst_compliance_score,
+                cashflow_stress_ratio, working_capital_usage, revenue_trend_index, payment_history_score,
+                supplier_payment_risk, note_stress_index, late_30_59, late_60_89, late_90_days,
+                open_credit_lines, real_estate_loans, num_dependents, emi_delay_count, risk_probability, risk_band
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                row['company_id'], float(row['revolving_utilization']), float(row['debt_ratio']),
+                float(row['income_stability']), float(row['gst_compliance_score']), float(row['cashflow_stress_ratio']),
+                float(row['working_capital_usage']), float(row['revenue_trend_index']), float(row['payment_history_score']),
+                float(row['supplier_payment_risk']), float(row['note_stress_index']),
+                int(row['late_30_59']), int(row['late_60_89']), int(row['late_90_days']),
+                int(row['open_credit_lines']), int(row['real_estate_loans']), int(row['num_dependents']),
+                int(row['emi_delay_count']), float(row['risk_probability']), row['risk_band']
+            ))
+        conn.commit()
+    conn.close()
+
 def load_assets():
-    global xgb_model, explainer, imputer, calibrator, feature_df, FEATURES
+    global xgb_model, explainer, imputer, calibrator, FEATURES
     try:
         xgb_model = joblib.load('models/xgb_model.joblib')
         explainer = joblib.load('models/shap_explainer.joblib')
         imputer   = joblib.load('models/imputer.joblib')
         FEATURES  = joblib.load('models/feature_list.joblib')
-        # Isotonic calibration layer — spreads scores realistically across 0-100%
         try:
             calibrator = joblib.load('models/calibrator.joblib')
             print("Isotonic calibrator loaded.")
         except FileNotFoundError:
             calibrator = None
             print("No calibrator found — using raw XGBoost probabilities.")
-        feature_df = build_portfolio()
-        print(f"Model loaded ({len(FEATURES)} features). Portfolio: {len(feature_df)} borrowers.")
+        init_db()
+        seed_db()
+        print("Model and database loaded successfully.")
     except Exception as e:
         print(f"Failed to load models: {e}")
         raise
@@ -569,13 +872,20 @@ def get_model_performance():
 
 @app.get("/portfolio")
 def get_portfolio_summary():
-    if feature_df is None:
+    if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    probs = predict_portfolio(feature_df)
+    feature_df = load_feature_df()
+    if feature_df.empty:
+        return {
+            "total_borrowers": 0, "avg_pd": 0.0, "total_exposure": 0.0, "total_expected_loss": 0.0,
+            "risk_distribution": {"Low":0, "Medium":0, "High":0, "Critical":0}, "sector_analytics": []
+        }
+
+    probs = feature_df['risk_probability'].values
     df = feature_df.copy()
     df['pd']    = probs
-    df['band']  = df['pd'].apply(get_risk_band)
+    df['band']  = df['risk_band']
     df['lgd']   = df['sector'].map(lambda s: LGD_MAP.get(s, 0.4))
     df['el']    = df['outstanding_loan'] * df['pd'] * df['lgd']
 
@@ -604,19 +914,21 @@ def get_portfolio_summary():
 
 @app.get("/borrowers")
 def get_borrowers(limit: int = 50):
-    if feature_df is None:
+    if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    probs = predict_portfolio(feature_df)
+    feature_df = load_feature_df()
+    if feature_df.empty:
+        return []
+
     df = feature_df.copy()
-    df['pd'] = probs
-    # Compute delta_pd: trajectory first-month PD vs current for velocity warning
+    df['pd'] = df['risk_probability']
     top = df.sort_values('pd', ascending=False).head(limit)
 
     results = []
     for _, row in top.iterrows():
         pd_val = float(row['pd'])
-        risk_score = int(round(pd_val * 100))  # 0-100 scale for UI score bar
+        risk_score = int(round(pd_val * 100))
         lgd = LGD_MAP.get(row['sector'], 0.4)
         el  = pd_val * float(row['outstanding_loan']) * lgd
         results.append({
@@ -627,33 +939,30 @@ def get_borrowers(limit: int = 50):
             "risk_score":       risk_score,
             "outstanding_loan": float(row['outstanding_loan']),
             "expected_loss":    el,
-            "risk_band":        get_risk_band(pd_val),
+            "risk_band":        row['risk_band'],
         })
     return results
 
 @app.get("/borrowers/{company_id}")
 def get_borrower_details(company_id: str):
-    if feature_df is None:
+    if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
+    feature_df = load_feature_df()
     row = feature_df[feature_df['company_id'] == company_id]
     if row.empty:
         raise HTTPException(status_code=404, detail="Borrower not found")
     row = row.iloc[0]
 
-    # Predict PD (calibrated — identical to /portfolio and /borrowers)
-    current_pd = predict_pd(row[FEATURES].to_dict())
+    current_pd = float(row['risk_probability'])
 
-    # Build model-derived 12-month trajectory
-    # Simulate degrading monthly features and run model at each step
     timeline = []
     months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     base_features = row[FEATURES].to_dict()
-    bias = current_pd  # Use final PD as a proxy for underlying risk level
+    bias = current_pd
 
     for m_idx, month in enumerate(months):
-        # Simulate monthly deterioration proportional to final PD
-        scale = (m_idx / 11)  # 0 → 1
+        scale = (m_idx / 11)
         monthly_feats = base_features.copy()
         monthly_feats['revolving_utilization'] = float(np.clip(
             base_features['revolving_utilization'] * (0.5 + 0.5 * scale), 0.01, 0.99))
@@ -664,10 +973,9 @@ def get_borrower_details(company_id: str):
         monthly_feats['cashflow_stress_ratio'] = float(
             base_features['cashflow_stress_ratio'] * (0.6 + 0.6 * scale))
 
-        m_pd = predict_pd(monthly_feats)  # calibrated, same path as current_pd
+        m_pd = predict_pd(monthly_feats)
         timeline.append({"month": month, "pd": m_pd})
 
-    # Journey events
     journey_events = []
     try:
         raw = json.loads(row['journey_events'])
@@ -694,23 +1002,22 @@ def get_borrower_details(company_id: str):
         "expected_loss":    el,
         "potential_recovery": ead - el,
         "current_pd":       current_pd,
-        "risk_band":        get_risk_band(current_pd),
+        "risk_band":        row['risk_band'],
         "timeline":         timeline,
         "risk_migration": {
             "start_band": get_risk_band(timeline[0]['pd']),
-            "end_band":   get_risk_band(current_pd)
+            "end_band":   row['risk_band']
         },
         "journey_events":  journey_events,
         "officer_notes":   str(row.get('officer_notes', '') or ''),
         "note_stress_index": float(row['note_stress_index']) if 'note_stress_index' in row else None,
         "raw_features":    {k: float(row[k]) for k in FEATURES},
-        "action_ladder":   ACTION_LADDER.get(get_risk_band(current_pd), [])
+        "action_ladder":   ACTION_LADDER.get(row['risk_band'], [])
     }
 
 def _portfolio_percentile(feature: str, value: float) -> float:
-    """Share of the active portfolio whose value for `feature` is below `value`
-    (0-1). Contextualises whether a borrower's reading is high or low vs peers."""
     try:
+        feature_df = load_feature_df()
         col = pd.to_numeric(feature_df[feature], errors='coerce').dropna()
         if len(col) == 0:
             return 0.5
@@ -718,12 +1025,12 @@ def _portfolio_percentile(feature: str, value: float) -> float:
     except Exception:
         return 0.5
 
-
 @app.get("/borrowers/{company_id}/explain")
 def get_shap_explanation(company_id: str):
-    if feature_df is None or explainer is None:
+    if explainer is None or FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
+    feature_df = load_feature_df()
     row = feature_df[feature_df['company_id'] == company_id]
     if row.empty:
         raise HTTPException(status_code=404, detail="Borrower not found")
@@ -731,21 +1038,18 @@ def get_shap_explanation(company_id: str):
     X = row[FEATURES].copy()
     X_imp = imputer.transform(X)
     shap_vals = np.asarray(explainer.shap_values(X_imp))
-    if shap_vals.ndim == 3:          # some SHAP versions return (classes, rows, feats)
+    if shap_vals.ndim == 3:
         shap_vals = shap_vals[-1]
     shap_row = shap_vals[0]
 
-    # SHAP works in log-odds (margin) space: baseline + Σ contributions = model margin.
     base_lo       = float(np.ravel(explainer.expected_value)[-1])
     base_prob_raw = _sigmoid(base_lo)
-    # Calibrate the baseline through the same isotonic layer so it is directly
-    # comparable to the (calibrated) PD every module shows.
     if calibrator is not None:
         base_prob = float(np.clip(calibrator.predict([base_prob_raw])[0], 0.0, 1.0))
     else:
         base_prob = base_prob_raw
-    current_pd = predict_pd(X.iloc[0].to_dict())   # calibrated PD (what every module shows)
-    band = get_risk_band(current_pd)
+    current_pd = float(row.iloc[0]['risk_probability'])
+    band = row.iloc[0]['risk_band']
 
     feat_vals = X.iloc[0].to_dict()
     total_abs = float(sum(abs(float(s)) for s in shap_row)) or 1.0
@@ -755,7 +1059,6 @@ def get_shap_explanation(company_id: str):
         val = float(feat_vals[f])
         impact = float(shap_row[i])
         pct = _portfolio_percentile(f, val)
-        # Frame the percentile in the risk direction of the feature.
         higher_is_worse = impact >= 0
         rank_txt = (f"higher than {pct*100:.0f}% of the portfolio" if val >= 0 else "")
         drivers.append({
@@ -776,7 +1079,6 @@ def get_shap_explanation(company_id: str):
     increasing = [d for d in drivers if d["impact"] > 0]
     reducing   = [d for d in drivers if d["impact"] < 0]
 
-    # ── Plain-English decision summary ───────────────────────────────
     def _phrase(ds, n=3):
         return "; ".join(f"{d['label'].lower()} ({d['value_display']})" for d in ds[:n]) or "no dominant factor"
 
@@ -803,20 +1105,16 @@ def get_shap_explanation(company_id: str):
             "label":       "Model baseline (average MSME borrower)",
         },
         "summary":         summary,
-        "key_drivers":     drivers,            # ALL features, ranked by |impact|
+        "key_drivers":     drivers,
         "risk_increasing": increasing[:5],
         "risk_reducing":   reducing[:5],
         "note_stress_index": float(row.iloc[0]['note_stress_index']) if 'note_stress_index' in row.columns else None,
         "officer_notes":   str(row.iloc[0].get('officer_notes', '') or ''),
     }
 
-# ─── Data Upload Module ──────────────────────────────────────
-
 @app.post("/upload")
 async def upload_portfolio(file: UploadFile = File(...)):
-    """Upload a borrower CSV (model schema OR blueprint MSME schema).
-    Replaces the active portfolio and re-scores it through the model."""
-    global feature_df
+    """Upload a borrower CSV. Replaces the active portfolio inside SQLite and re-scores it."""
     if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     if not file.filename.lower().endswith('.csv'):
@@ -832,70 +1130,156 @@ async def upload_portfolio(file: UploadFile = File(...)):
 
     try:
         mapped = map_upload_to_portfolio(df_in)
-        # Validate it scores cleanly before committing
-        _ = predict_portfolio(mapped)
+        probs = predict_portfolio(mapped)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Could not map file to model features: {e}")
 
-    feature_df = mapped
-    probs = predict_portfolio(feature_df)
+    mapped['risk_probability'] = probs
+    mapped['risk_band'] = mapped['risk_probability'].apply(get_risk_band)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM online_features")
+    cursor.execute("DELETE FROM borrowers")
+    
+    for _, row in mapped.iterrows():
+        loan_type = row.get('loan_type', 'Term Loan')
+        officer_notes = row.get('officer_notes', '')
+        journey_events = row.get('journey_events', '[]')
+        
+        cursor.execute("""
+        INSERT OR REPLACE INTO borrowers (company_id, sector, loan_type, outstanding_loan, officer_notes, journey_events)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            row['company_id'], row['sector'], loan_type, float(row['outstanding_loan']),
+            officer_notes, journey_events
+        ))
+        
+        cursor.execute("""
+        INSERT OR REPLACE INTO online_features (
+            company_id, revolving_utilization, debt_ratio, income_stability, gst_compliance_score,
+            cashflow_stress_ratio, working_capital_usage, revenue_trend_index, payment_history_score,
+            supplier_payment_risk, note_stress_index, late_30_59, late_60_89, late_90_days,
+            open_credit_lines, real_estate_loans, num_dependents, emi_delay_count, risk_probability, risk_band
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            row['company_id'], float(row['revolving_utilization']), float(row['debt_ratio']),
+            float(row['income_stability']), float(row['gst_compliance_score']), float(row['cashflow_stress_ratio']),
+            float(row['working_capital_usage']), float(row['revenue_trend_index']), float(row['payment_history_score']),
+            float(row['supplier_payment_risk']), float(row['note_stress_index']),
+            int(row.get('late_30_59', 0)), int(row.get('late_60_89', 0)), int(row.get('late_90_days', 0)),
+            int(row.get('open_credit_lines', 5)), int(row.get('real_estate_loans', 0)), int(row.get('num_dependents', 0)),
+            int(row.get('emi_delay_count', 0)), float(row['risk_probability']), row['risk_band']
+        ))
+        
+    conn.commit()
+    conn.close()
+
     return {
         "status": "ok",
         "filename": file.filename,
         "rows_ingested": int(len(df_in)),
-        "borrowers_scored": int(len(feature_df)),
+        "borrowers_scored": int(len(mapped)),
         "avg_pd": float(probs.mean()),
         "high_risk_count": int((probs >= 0.5).sum()),
     }
 
-
 @app.post("/reset")
 def reset_portfolio():
-    """Restore the built-in demo portfolio."""
-    global feature_df
-    feature_df = build_portfolio()
-    return {"status": "ok", "borrowers": int(len(feature_df))}
-
+    """Restore the built-in demo portfolio inside SQLite."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM online_features")
+    cursor.execute("DELETE FROM borrowers")
+    conn.commit()
+    conn.close()
+    
+    seed_db()
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM borrowers")
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    return {"status": "ok", "borrowers": count}
 
 @app.post("/refresh")
 def refresh_portfolio(count: int = 10):
-    """Simulate new companies taking loans and fold them into the live portfolio."""
-    global feature_df
-    if feature_df is None:
+    """Simulate new companies taking loans and fold them into the SQLite database."""
+    if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     count = max(1, min(int(count), 100))
 
     new_df = generate_new_loans(count)
-    # Align columns with the active portfolio, then append
-    feature_df = pd.concat([feature_df, new_df], ignore_index=True)
-
     probs = predict_portfolio(new_df)
-    new_loans = sorted(
-        [{"company_id": r['company_id'], "sector": r['sector'],
-          "pd": float(p), "risk_band": get_risk_band(float(p)),
-          "outstanding_loan": float(r['outstanding_loan'])}
-         for (_, r), p in zip(new_df.iterrows(), probs)],
-        key=lambda x: x['pd'], reverse=True)
+    new_df['risk_probability'] = probs
+    new_df['risk_band'] = new_df['risk_probability'].apply(get_risk_band)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    new_loans = []
+    for _, row in new_df.iterrows():
+        cursor.execute("""
+        INSERT OR REPLACE INTO borrowers (company_id, sector, loan_type, outstanding_loan, officer_notes, journey_events)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            row['company_id'], row['sector'], row['loan_type'], float(row['outstanding_loan']),
+            row['officer_notes'], row['journey_events']
+        ))
+        cursor.execute("""
+        INSERT OR REPLACE INTO online_features (
+            company_id, revolving_utilization, debt_ratio, income_stability, gst_compliance_score,
+            cashflow_stress_ratio, working_capital_usage, revenue_trend_index, payment_history_score,
+            supplier_payment_risk, note_stress_index, late_30_59, late_60_89, late_90_days,
+            open_credit_lines, real_estate_loans, num_dependents, emi_delay_count, risk_probability, risk_band
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            row['company_id'], float(row['revolving_utilization']), float(row['debt_ratio']),
+            float(row['income_stability']), float(row['gst_compliance_score']), float(row['cashflow_stress_ratio']),
+            float(row['working_capital_usage']), float(row['revenue_trend_index']), float(row['payment_history_score']),
+            float(row['supplier_payment_risk']), float(row['note_stress_index']),
+            int(row['late_30_59']), int(row['late_60_89']), int(row['late_90_days']),
+            int(row['open_credit_lines']), int(row['real_estate_loans']), int(row['num_dependents']),
+            int(row['emi_delay_count']), float(row['risk_probability']), row['risk_band']
+        ))
+        
+        new_loans.append({
+            "company_id": row['company_id'],
+            "sector": row['sector'],
+            "pd": float(row['risk_probability']),
+            "risk_band": row['risk_band'],
+            "outstanding_loan": float(row['outstanding_loan'])
+        })
+        
+    conn.commit()
+    
+    cursor.execute("SELECT COUNT(*) FROM borrowers")
+    total_borrowers = cursor.fetchone()[0]
+    conn.close()
+    
+    new_loans = sorted(new_loans, key=lambda x: x['pd'], reverse=True)
     return {
         "status": "ok",
         "added": count,
-        "total_borrowers": int(len(feature_df)),
+        "total_borrowers": total_borrowers,
         "new_high_risk": int((probs >= 0.5).sum()),
         "new_avg_pd": float(probs.mean()),
         "new_loans": new_loans,
     }
 
-# ─── Agentic Risk Copilot (interactive Q&A) ──────────────────
-
 def _borrower_context(company_id: str) -> dict:
-    """Assemble PD, band, top SHAP drivers and financials for one borrower."""
+    feature_df = load_feature_df()
     row = feature_df[feature_df['company_id'] == company_id]
     if row.empty:
         raise HTTPException(status_code=404, detail="Borrower not found")
     X = row[FEATURES].copy()
     X_imp = imputer.transform(X)
-    pd_val = predict_pd(X.iloc[0].to_dict())  # calibrated — consistent with every other module
-    band = get_risk_band(pd_val)
+    pd_val = float(row.iloc[0]['risk_probability'])
+    band = row.iloc[0]['risk_band']
 
     drivers = []
     if explainer is not None:
@@ -920,15 +1304,48 @@ def _borrower_context(company_id: str) -> dict:
         "actions": [a["action"] for a in ACTION_LADDER.get(band, [])],
     }
 
-
 def _portfolio_attention() -> list:
-    probs = predict_portfolio(feature_df)
+    feature_df = load_feature_df()
+    if feature_df.empty:
+        return []
     df = feature_df.copy()
-    df['pd'] = probs
+    df['pd'] = df['risk_probability']
     top = df.sort_values('pd', ascending=False).head(5)
     return [{"company_id": r['company_id'], "sector": r['sector'],
-             "pd": float(r['pd']), "band": get_risk_band(float(r['pd']))}
+             "pd": float(r['pd']), "band": r['risk_band']}
             for _, r in top.iterrows()]
+
+@app.post("/api/events")
+async def ingest_event(payload: dict = Body(...)):
+    company_id = payload.get("company_id")
+    event_type = payload.get("event_type")
+    event_payload = payload.get("payload")
+    
+    if not company_id or not event_type:
+        raise HTTPException(status_code=400, detail="company_id and event_type are required")
+        
+    if event_type not in ["transaction", "gst_filing", "emi_payment", "officer_note"]:
+        raise HTTPException(status_code=400, detail="invalid event_type")
+        
+    event_item = {
+        "company_id": company_id,
+        "event_type": event_type,
+        "payload": event_payload
+    }
+    
+    await event_stream_queue.put(event_item)
+    return {"status": "queued", "company_id": company_id, "event_type": event_type}
+
+@app.websocket("/ws/risk-stream")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    print("WebSocket client connected.")
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        print("WebSocket client disconnected.")
 
 
 def copilot_engine() -> str:
@@ -1092,7 +1509,7 @@ def _answer_gemini(question: str, ctx: dict | None) -> str:
 def copilot(payload: dict = Body(...)):
     """Interactive Risk Copilot. Body: {question, company_id?}.
     Answers per-borrower, or portfolio-level if company_id is omitted."""
-    if feature_df is None:
+    if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     question = (payload.get("question") or "").strip()
     if not question:

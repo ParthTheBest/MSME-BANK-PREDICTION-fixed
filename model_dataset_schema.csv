@@ -1,0 +1,16 @@
+Column Name,Data Type,Role,Range/Values,Description,Monotonicity
+company_id,String,Identifier,"e.g., 'MSME-0001', 'MSME-N0012'",Unique identifier for the MSME borrower.,None
+sector,String (Categorical),Metadata,"Retail, Manufacturing, Construction, Technology, Agriculture, Textile",The industrial sector the borrower operates in.,None
+loan_type,String (Categorical),Metadata,"Term Loan, Working Capital, Trade Credit",The type of credit facility assigned to the borrower.,None
+outstanding_loan,Float,Metadata,"200,000.0 to 2,500,000.0 (INR)",Total outstanding principal loan amount.,None
+revolving_utilization,Float,Model Feature,0.01 to 0.99 (Percentage),Working capital credit line utilization trend. Higher values indicate higher default risk.,+1 (Increasing raises risk)
+debt_ratio,Float,Model Feature,0.01 to 3.0 (Ratio),Debt-to-income ratio. Higher values indicate higher default risk.,+1 (Increasing raises risk)
+income_stability,Float,Model Feature,0.00 to 1.00 (Index),Revenue consistency score. Lower values indicate higher default risk.,-1 (Decreasing raises risk)
+gst_compliance_score,Float,Model Feature,0.00 to 1.00 (Score),GST filing regularity score. Lower compliance indicates higher default risk.,-1 (Decreasing raises risk)
+cashflow_stress_ratio,Float,Model Feature,0.00 to 5.00 (Index),Cashflow pressure index. Higher values indicate higher default risk.,+1 (Increasing raises risk)
+working_capital_usage,Float,Model Feature,0.00 to 1.00 (Percentage),Sanctioned working capital line draw percentage. Higher usage indicates higher default risk.,+1 (Increasing raises risk)
+revenue_trend_index,Float,Model Feature,0.20 to 2.00 (Index),Month-on-Month revenue trend index. Lower values (declining revenue) raise default risk.,-1 (Decreasing raises risk)
+payment_history_score,Float,Model Feature,0.00 to 1.00 (Score),Overall credit payment history compliance score. Lower scores raise default risk.,-1 (Decreasing raises risk)
+supplier_payment_risk,Float (Binary),Model Feature,0.0 (Clear) or 1.0 (Delayed),Flag indicating active delays in paying creditors or suppliers.,+1 (Increasing raises risk)
+note_stress_index,Float,Model Feature,0.00 to 1.00 (Index),NLP stress score extracted from credit officer notes. Higher scores indicate higher stress/risk.,+1 (Increasing raises risk)
+default_flag,Integer (Binary),Target Label,0 (No Default) or 1 (Default),Target label indicating if the borrower defaulted / entered NPA status.,N/A

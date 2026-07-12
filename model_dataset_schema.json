@@ -1,0 +1,122 @@
+[
+    {
+        "Column Name": "company_id",
+        "Data Type": "String",
+        "Role": "Identifier",
+        "Range/Values": "e.g., 'MSME-0001', 'MSME-N0012'",
+        "Description": "Unique identifier for the MSME borrower.",
+        "Monotonicity": "None"
+    },
+    {
+        "Column Name": "sector",
+        "Data Type": "String (Categorical)",
+        "Role": "Metadata",
+        "Range/Values": "Retail, Manufacturing, Construction, Technology, Agriculture, Textile",
+        "Description": "The industrial sector the borrower operates in.",
+        "Monotonicity": "None"
+    },
+    {
+        "Column Name": "loan_type",
+        "Data Type": "String (Categorical)",
+        "Role": "Metadata",
+        "Range/Values": "Term Loan, Working Capital, Trade Credit",
+        "Description": "The type of credit facility assigned to the borrower.",
+        "Monotonicity": "None"
+    },
+    {
+        "Column Name": "outstanding_loan",
+        "Data Type": "Float",
+        "Role": "Metadata",
+        "Range/Values": "200,000.0 to 2,500,000.0 (INR)",
+        "Description": "Total outstanding principal loan amount.",
+        "Monotonicity": "None"
+    },
+    {
+        "Column Name": "revolving_utilization",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.01 to 0.99 (Percentage)",
+        "Description": "Working capital credit line utilization trend. Higher values indicate higher default risk.",
+        "Monotonicity": "+1 (Increasing raises risk)"
+    },
+    {
+        "Column Name": "debt_ratio",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.01 to 3.0 (Ratio)",
+        "Description": "Debt-to-income ratio. Higher values indicate higher default risk.",
+        "Monotonicity": "+1 (Increasing raises risk)"
+    },
+    {
+        "Column Name": "income_stability",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.00 to 1.00 (Index)",
+        "Description": "Revenue consistency score. Lower values indicate higher default risk.",
+        "Monotonicity": "-1 (Decreasing raises risk)"
+    },
+    {
+        "Column Name": "gst_compliance_score",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.00 to 1.00 (Score)",
+        "Description": "GST filing regularity score. Lower compliance indicates higher default risk.",
+        "Monotonicity": "-1 (Decreasing raises risk)"
+    },
+    {
+        "Column Name": "cashflow_stress_ratio",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.00 to 5.00 (Index)",
+        "Description": "Cashflow pressure index. Higher values indicate higher default risk.",
+        "Monotonicity": "+1 (Increasing raises risk)"
+    },
+    {
+        "Column Name": "working_capital_usage",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.00 to 1.00 (Percentage)",
+        "Description": "Sanctioned working capital line draw percentage. Higher usage indicates higher default risk.",
+        "Monotonicity": "+1 (Increasing raises risk)"
+    },
+    {
+        "Column Name": "revenue_trend_index",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.20 to 2.00 (Index)",
+        "Description": "Month-on-Month revenue trend index. Lower values (declining revenue) raise default risk.",
+        "Monotonicity": "-1 (Decreasing raises risk)"
+    },
+    {
+        "Column Name": "payment_history_score",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.00 to 1.00 (Score)",
+        "Description": "Overall credit payment history compliance score. Lower scores raise default risk.",
+        "Monotonicity": "-1 (Decreasing raises risk)"
+    },
+    {
+        "Column Name": "supplier_payment_risk",
+        "Data Type": "Float (Binary)",
+        "Role": "Model Feature",
+        "Range/Values": "0.0 (Clear) or 1.0 (Delayed)",
+        "Description": "Flag indicating active delays in paying creditors or suppliers.",
+        "Monotonicity": "+1 (Increasing raises risk)"
+    },
+    {
+        "Column Name": "note_stress_index",
+        "Data Type": "Float",
+        "Role": "Model Feature",
+        "Range/Values": "0.00 to 1.00 (Index)",
+        "Description": "NLP stress score extracted from credit officer notes. Higher scores indicate higher stress/risk.",
+        "Monotonicity": "+1 (Increasing raises risk)"
+    },
+    {
+        "Column Name": "default_flag",
+        "Data Type": "Integer (Binary)",
+        "Role": "Target Label",
+        "Range/Values": "0 (No Default) or 1 (Default)",
+        "Description": "Target label indicating if the borrower defaulted / entered NPA status.",
+        "Monotonicity": "N/A"
+    }
+]

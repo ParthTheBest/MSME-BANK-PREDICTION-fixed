@@ -1124,7 +1124,10 @@ def get_shap_explanation(company_id: str):
 
     base_prob_raw = _sigmoid(base_lo)
     if calibrator is not None:
-        base_prob = float(np.clip(calibrator.predict([base_prob_raw])[0], 0.0, 1.0))
+        if isinstance(calibrator, dict):
+            base_prob = float(np.clip(np.interp(base_prob_raw, calibrator['xp'], calibrator['fp']), 0.0, 1.0))
+        else:
+            base_prob = float(np.clip(calibrator.predict([base_prob_raw])[0], 0.0, 1.0))
     else:
         base_prob = base_prob_raw
     current_pd = float(row.iloc[0]['risk_probability'])

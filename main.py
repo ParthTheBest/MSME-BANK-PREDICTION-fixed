@@ -1113,7 +1113,8 @@ def get_shap_explanation(company_id: str):
     else:
         import xgboost as xgb
         d = xgb.DMatrix(X_imp)
-        contribs = xgb_model.get_booster().predict(d, pred_contribs=True)
+        booster = xgb_model.get_booster() if hasattr(xgb_model, 'get_booster') else xgb_model
+        contribs = booster.predict(d, pred_contribs=True)
         shap_vals = contribs[:, :-1]
         base_lo = float(contribs[0, -1])
 
@@ -1372,7 +1373,8 @@ def _borrower_context(company_id: str) -> dict:
         else:
             import xgboost as xgb
             d = xgb.DMatrix(X_imp)
-            contribs = xgb_model.get_booster().predict(d, pred_contribs=True)
+            booster = xgb_model.get_booster() if hasattr(xgb_model, 'get_booster') else xgb_model
+            contribs = booster.predict(d, pred_contribs=True)
             shap_vals = contribs[:, :-1]
         feat_vals = X.iloc[0].to_dict()
         drivers = sorted(

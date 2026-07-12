@@ -1,6 +1,6 @@
 # Vercel Deployment Runtime Dependencies (Optimized to stay within 250MB limit)
 numpy==2.4.6
-xgboost==3.3.0
+xgboost-cpu==3.3.0
 pandas==3.0.3
 joblib==1.5.3
 fastapi==0.138.0

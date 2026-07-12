@@ -30,7 +30,11 @@ import asyncio
 import datetime
 from fastapi import WebSocket, WebSocketDisconnect
 
-DB_PATH = "msme_risk.db"
+import os
+if os.environ.get("VERCEL"):
+    DB_PATH = "/tmp/msme_risk.db"
+else:
+    DB_PATH = "msme_risk.db"
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)

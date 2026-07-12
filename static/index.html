@@ -71,6 +71,50 @@
 }
 
 /* ============================================================
+   DARK THEME VARIABLES
+   ============================================================ */
+body.dark-theme {
+  --canvas:       #0B0F19;
+  --surface:      #131929;
+  --surface-2:    #1E2640;
+  --surface-3:    #2A355C;
+
+  --sidebar-bg:   #080C14;
+  --sidebar-2:    #101624;
+  --sidebar-3:    #182238;
+  --sidebar-text: #64748B;
+  --sidebar-text-active: #F8FAFC;
+
+  --text-primary:   #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-tertiary:  #64748B;
+
+  --border:       #1E293B;
+  --border-2:     #334155;
+
+  --blue:         #38BDF8;
+  --blue-hover:   #0EA5E9;
+  --blue-pale:    #075985;
+  --blue-light:   #0C4A6E;
+
+  --critical-text: #F87171;
+  --critical-bg:   rgba(220, 38, 38, 0.15);
+  --critical-border: rgba(220, 38, 38, 0.3);
+
+  --warning-text:  #FBBF24;
+  --warning-bg:    rgba(217, 119, 6, 0.15);
+  --warning-border: rgba(217, 119, 6, 0.3);
+
+  --safe-text:     #34D399;
+  --safe-bg:       #064E3B;
+  --safe-border:   rgba(52, 211, 153, 0.3);
+
+  --high-text:     #FBBF24;
+  --high-bg:       rgba(217, 119, 6, 0.15);
+  --high-border:   rgba(217, 119, 6, 0.3);
+}
+
+/* ============================================================
    RESET & BASE
    ============================================================ */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -84,6 +128,11 @@ body {
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.card, .dossier, .sidebar, header, .btn, .el-box, .pd-verdict {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* ============================================================
@@ -448,7 +497,7 @@ body {
    ============================================================ */
 .content-columns {
   display: grid;
-  grid-template-columns: 1fr 352px;
+  grid-template-columns: 1fr 400px;
   gap: 16px;
   align-items: start;
 }
@@ -1150,47 +1199,139 @@ body {
 .action-desc  { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.4; }
 
 /* ============================================================
-   COPILOT
+   FLOATING RISK COPILOT
    ============================================================ */
+.copilot-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue) 0%, #06b6d4 100%);
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  transition: transform 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.copilot-fab:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.6);
+}
+
+.copilot-fab-pulse {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 50%;
+  border: 2px solid var(--blue);
+  animation: fab-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+@keyframes fab-ping {
+  75%, 100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.copilot-window {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 380px;
+  height: 520px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1000;
+  transition: opacity 0.25s, transform 0.25s;
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+.copilot-window.active {
+  display: flex;
+  transform: translateY(0);
+  opacity: 1;
+}
+
 .copilot-header {
-  padding: 11px 18px;
-  border-bottom: 1px solid var(--border);
+  background: var(--sidebar-bg);
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .copilot-title {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: 8px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #F8FAFC;
+  font-size: 14px;
 }
 
 .copilot-dot {
-  width: 24px; height: 24px;
-  background: var(--blue);
-  border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px;
-  color: #fff;
+  color: #38BDF8;
+  font-size: 14px;
+}
+
+.copilot-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .copilot-model-label {
-  font-size: 10.5px;
-  color: var(--text-tertiary);
+  font-size: 10px;
   font-family: 'JetBrains Mono', monospace;
+  background: var(--sidebar-2);
+  color: var(--sidebar-text);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.copilot-close {
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.copilot-close:hover {
+  color: #F8FAFC;
 }
 
 .copilot-chat {
-  padding: 14px 18px;
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--canvas);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background: var(--surface);
+  gap: 12px;
 }
 
 .chat-msg { display: flex; gap: 8px; align-items: flex-start; }
@@ -1218,40 +1359,55 @@ body {
   color: var(--text-secondary);
 }
 
-.chat-msg.ai-msg   .chat-bubble { background: var(--surface-2); border: 1px solid var(--border); }
-.chat-msg.user-msg .chat-bubble { background: var(--blue-pale);  border: 1px solid var(--blue-light); color: var(--blue-hover); }
+.chat-msg.ai-msg   .chat-bubble { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary); }
+.chat-msg.user-msg .chat-bubble { background: var(--blue-pale);  border: 1px solid var(--blue-light); color: var(--text-primary); }
 
 .copilot-input-row {
-  display: flex;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  background: var(--surface);
 }
 
 .copilot-input-row input {
   flex: 1;
-  border: none;
-  outline: none;
-  padding: 10px 14px;
-  font-size: 12.5px;
-  font-family: 'Inter', sans-serif;
+  background: var(--canvas);
+  border: 1px solid var(--border);
   color: var(--text-primary);
-  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  outline: none;
+  font-size: 12px;
 }
-
-.copilot-input-row input::placeholder { color: var(--text-tertiary); }
 
 .copilot-send {
-  padding: 10px 16px;
   background: var(--blue);
-  color: #fff;
+  color: #FFFFFF;
   border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 12px;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  transition: background 0.1s;
+  transition: background 0.15s;
 }
 
-.copilot-send:hover { background: var(--blue-hover); }
+.copilot-send:hover {
+  background: var(--blue-hover);
+}
+
+/* ============================================================
+   THEME TOGGLE BUTTON
+   ============================================================ */
+.theme-toggle-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  width: 32px;
+  height: 32px;
+}
 
 /* ============================================================
    STATUS BAR
@@ -1441,6 +1597,16 @@ body {
             <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
           </svg>
           Reset
+        </button>
+        <button class="btn btn-outline theme-toggle-btn" onclick="toggleTheme()" title="Toggle Light/Dark Theme" id="theme-toggle">
+          <!-- Sun Icon (shown in dark mode) -->
+          <svg class="sun-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <!-- Moon Icon (shown in light mode) -->
+          <svg class="moon-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
         </button>
         <div class="avatar">KS</div>
       </div>
@@ -1676,22 +1842,7 @@ body {
             <div id="dos-actions"></div>
           </div>
 
-          <!-- Copilot -->
-          <div class="copilot-header">
-            <div class="copilot-title">
-              <div class="copilot-dot">✦</div>
-              Risk Copilot
-            </div>
-            <div class="copilot-model-label">claude-opus-4-8</div>
-          </div>
-
-          <div class="copilot-chat" id="copilot-chat"></div>
-
-          <div class="copilot-input-row">
-            <input type="text" id="copilot-input" placeholder="Ask about this borrower, model output, or portfolio…"
-                   onkeydown="if(event.key==='Enter')askCopilot()">
-            <button class="copilot-send" onclick="askCopilot()">Send →</button>
-          </div>
+          <!-- Copilot moved to floating window -->
 
         </div>
         <!-- end dossier -->
@@ -1720,6 +1871,33 @@ body {
 </div>
 <!-- end app-shell -->
 
+<!-- Floating Copilot FAB and Window -->
+<button class="copilot-fab" onclick="toggleCopilot()" title="Chat with Risk Copilot">
+  <div class="copilot-fab-pulse"></div>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+</button>
+
+<div class="copilot-window" id="copilot-window">
+  <div class="copilot-header">
+    <div class="copilot-title">
+      <div class="copilot-dot">✦</div>
+      Risk Copilot
+    </div>
+    <div class="copilot-controls">
+      <span class="copilot-model-label">gemini-2.5-flash</span>
+      <button class="copilot-close" onclick="toggleCopilot()" title="Close chat">×</button>
+    </div>
+  </div>
+  <div class="copilot-chat" id="copilot-chat"></div>
+  <div class="copilot-input-row">
+    <input type="text" id="copilot-input" placeholder="Ask about this borrower, model output, or portfolio…"
+           onkeydown="if(event.key==='Enter')askCopilot()">
+    <button class="copilot-send" onclick="askCopilot()">Send</button>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    LIVE API WIRING  —  FastAPI backend (main.py)
@@ -1730,8 +1908,8 @@ const $ = id => document.getElementById(id);
 const BAND = {
   Critical: { cls:'critical', label:'Critical',  badge:'Critical',  color:'var(--critical-text)', t:'c-critical',
               pal:{bg:'var(--critical-bg)', bd:'var(--critical-border)', tx:'var(--critical-text)'} },
-  High:     { cls:'high',     label:'High Risk', badge:'High',      color:'#B45309',              t:'c-high',
-              pal:{bg:'var(--warning-bg)',  bd:'var(--warning-border)',  tx:'#B45309'} },
+  High:     { cls:'high',     label:'High Risk', badge:'High',      color:'var(--high-text)',     t:'c-high',
+              pal:{bg:'var(--high-bg)',     bd:'var(--high-border)',     tx:'var(--high-text)'} },
   Medium:   { cls:'warning',  label:'Watch',     badge:'Watch',     color:'var(--warning-text)',  t:'c-warning',
               pal:{bg:'var(--warning-bg)',  bd:'var(--warning-border)',  tx:'var(--warning-text)'} },
   Low:      { cls:'safe',     label:'Safe',      badge:'Safe',      color:'var(--safe-text)',     t:'c-safe',
@@ -1757,9 +1935,57 @@ async function api(path, opts) {
   return r.json();
 }
 
+/* ---------- theme & copilot toggle ---------- */
+function toggleTheme() {
+  const isDark = document.body.classList.toggle('dark-theme');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  updateThemeIcons(isDark);
+  
+  // Re-render active charts to pick up the new text/border colors
+  if (currentView === 'trends') renderTrends();
+  if (currentView === 'eloss') renderExpectedLoss();
+}
+
+function updateThemeIcons(isDark) {
+  const sun = document.querySelector('.sun-icon');
+  const moon = document.querySelector('.moon-icon');
+  if (sun && moon) {
+    if (isDark) {
+      sun.style.display = 'inline-block';
+      moon.style.display = 'none';
+    } else {
+      sun.style.display = 'none';
+      moon.style.display = 'inline-block';
+    }
+  }
+}
+
+function toggleCopilot() {
+  const win = $('copilot-window');
+  if (win) {
+    win.classList.toggle('active');
+    if (win.classList.contains('active')) {
+      $('copilot-input').focus();
+    }
+  }
+}
+
+// On load: default to dark theme for premium authority
+(function() {
+  const saved = localStorage.getItem('theme');
+  const isDark = saved === 'dark' || saved === null;
+  if (isDark) {
+    document.body.classList.add('dark-theme');
+  } else {
+    document.body.classList.remove('dark-theme');
+  }
+})();
+
 /* ---------- bootstrap ---------- */
 async function init() {
   attachNav();
+  const isDark = document.body.classList.contains('dark-theme');
+  updateThemeIcons(isDark);
   try {
     await Promise.all([loadPortfolio(), loadPerf(), loadBorrowers()]);
     if (allBorrowers.length) loadDossier(allBorrowers[0].company_id);
@@ -1925,6 +2151,18 @@ async function loadDossier(company_id) {
   $('dos-pd').textContent = (det.current_pd * 100).toFixed(1) + '%';
   const rising = det.risk_migration && det.risk_migration.end_band !== det.risk_migration.start_band;
   $('dos-trend').textContent = rising ? '↑ Trending — intervention advised' : 'Stable trajectory';
+  
+  const verdictEl = document.querySelector('.pd-verdict');
+  if (verdictEl) {
+    verdictEl.style.background = m.pal.bg;
+    verdictEl.style.borderBottom = `1px solid ${m.pal.bd}`;
+  }
+  const pdNumEl = document.querySelector('.pd-number');
+  if (pdNumEl) pdNumEl.style.color = m.pal.tx;
+  const pdLblEl = document.querySelector('.pd-label-small');
+  if (pdLblEl) pdLblEl.style.color = m.pal.tx;
+  if ($('dos-trend')) $('dos-trend').style.color = m.pal.tx;
+
   const badge = $('dos-badge');
   badge.style.background = m.pal.bg; badge.style.borderColor = m.pal.bd;
   badge.innerHTML = `<span class="pd-badge-text" style="color:${m.pal.tx}">${m.badge.toUpperCase()}</span>`;
@@ -2173,6 +2411,9 @@ const pdBand = pd => pd >= 0.75 ? 'Critical' : pd >= 0.5 ? 'High' : pd >= 0.2 ? 
 function renderTrends() {
   const p = portfolioData;
   if (!p) { $('analytics-view').innerHTML = '<div class="card">Loading…</div>'; return; }
+  const isDark = document.body.classList.contains('dark-theme');
+  const textColor = isDark ? '#94a3b8' : '#475569';
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0';
   const d = p.risk_distribution || {}, bands = ['Low','Medium','High','Critical'];
   const total = bands.reduce((s,b) => s + (d[b]||0), 0) || 1;
   const sectors = (p.sector_analytics||[]).slice().sort((a,b) => b.avg_pd - a.avg_pd);
@@ -2289,7 +2530,8 @@ function renderTrends() {
               position: 'bottom',
               labels: {
                 boxWidth: 10,
-                font: { family: 'Inter', size: 10 }
+                font: { family: 'Inter', size: 10 },
+                color: textColor
               }
             },
             tooltip: {
@@ -2342,15 +2584,16 @@ function renderTrends() {
           },
           scales: {
             x: {
-              ticks: { font: { family: 'Inter', size: 10 } },
+              ticks: { color: textColor, font: { family: 'Inter', size: 10 } },
               grid: { display: false }
             },
             y: {
               ticks: {
                 callback: function(value) { return value + '%'; },
+                color: textColor,
                 font: { family: 'Inter', size: 9 }
               },
-              grid: { color: '#E2E8F0', borderDash: [4, 4] }
+              grid: { color: gridColor, borderDash: [4, 4] }
             }
           }
         }
@@ -2367,6 +2610,9 @@ function renderTrends() {
 function renderExpectedLoss() {
   const p = portfolioData;
   if (!p) { $('analytics-view').innerHTML = '<div class="card">Loading…</div>'; return; }
+  const isDark = document.body.classList.contains('dark-theme');
+  const textColor = isDark ? '#94a3b8' : '#475569';
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0';
   const sectors = (p.sector_analytics||[]).slice().sort((a,b) => b.expected_loss - a.expected_loss);
   const maxEl = Math.max(...sectors.map(s => s.expected_loss), 1);
   const rows = sectors.map(s => `
@@ -2440,11 +2686,11 @@ function renderExpectedLoss() {
         'rgba(245, 158, 11, 0.85)',  
         'rgba(59, 130, 246, 0.85)',  
         'rgba(16, 185, 129, 0.85)',  
-        'rgba(139, 92, 246, 0.85)',  
+        'rgba(6, 182, 212, 0.85)',   
         'rgba(236, 72, 153, 0.85)'   
       ];
       const borderColors = [
-        '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec7217'
+        '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#06b6d4', '#ec7217'
       ];
 
       const elShareChart = new Chart(shareCtx, {
@@ -2466,7 +2712,8 @@ function renderExpectedLoss() {
               position: 'bottom',
               labels: {
                 boxWidth: 10,
-                font: { family: 'Inter', size: 10 }
+                font: { family: 'Inter', size: 10 },
+                color: textColor
               }
             },
             tooltip: {
@@ -2513,7 +2760,7 @@ function renderExpectedLoss() {
           plugins: {
             legend: {
               position: 'top',
-              labels: { boxWidth: 10, font: { family: 'Inter', size: 10 } }
+              labels: { boxWidth: 10, font: { family: 'Inter', size: 10 }, color: textColor }
             },
             tooltip: {
               callbacks: {
@@ -2525,7 +2772,7 @@ function renderExpectedLoss() {
           },
           scales: {
             x: {
-              ticks: { font: { family: 'Inter', size: 10 } },
+              ticks: { color: textColor, font: { family: 'Inter', size: 10 } },
               grid: { display: false }
             },
             y: {
@@ -2534,9 +2781,10 @@ function renderExpectedLoss() {
                   if (value >= 100000) return '₹' + (value/100000).toFixed(1) + 'L';
                   return '₹' + value;
                 },
+                color: textColor,
                 font: { family: 'Inter', size: 9 }
               },
-              grid: { color: '#E2E8F0', borderDash: [4, 4] }
+              grid: { color: gridColor, borderDash: [4, 4] }
             }
           }
         }

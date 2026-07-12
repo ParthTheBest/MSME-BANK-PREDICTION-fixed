@@ -308,6 +308,19 @@ imputer     = None
 calibrator  = None   # Isotonic calibration layer (loaded alongside xgb_model)
 FEATURES    = None
 
+IMPUTER_MEDIANS = {
+    'revolving_utilization': 0.311059724762653,
+    'debt_ratio': 0.3434650111542832,
+    'income_stability': 0.6139865720483135,
+    'gst_compliance_score': 0.6859868453969648,
+    'cashflow_stress_ratio': 0.48113627037110945,
+    'working_capital_usage': 0.3105415536187712,
+    'revenue_trend_index': 1.0028420385171652,
+    'payment_history_score': 0.7362094496836964,
+    'supplier_payment_risk': 0.0,
+    'note_stress_index': 0.2662945171272947
+}
+
 # ─── Sector LGD (Loss Given Default) ────────────────────────
 LGD_MAP = {
     'Retail':        0.35,
@@ -818,8 +831,6 @@ def load_assets():
     global xgb_model, explainer, imputer, calibrator, FEATURES
     try:
         xgb_model = joblib.load('models/xgb_model.joblib')
-        explainer = joblib.load('models/shap_explainer.joblib')
-        imputer   = joblib.load('models/imputer.joblib')
         FEATURES  = joblib.load('models/feature_list.joblib')
         try:
             calibrator = joblib.load('models/calibrator.joblib')
@@ -827,6 +838,18 @@ def load_assets():
         except FileNotFoundError:
             calibrator = None
             print("No calibrator found — using raw XGBoost probabilities.")
+        try:
+            imputer = joblib.load('models/imputer.joblib')
+            print("Scikit-learn imputer loaded.")
+        except Exception:
+            imputer = None
+            print("Using custom manual imputer fallback.")
+        try:
+            explainer = joblib.load('models/shap_explainer.joblib')
+            print("SHAP explainer loaded.")
+        except Exception:
+            explainer = None
+            print("Using built-in XGBoost C++ SHAP explainer fallback.")
         init_db()
         seed_db()
         print("Model and database loaded successfully.")
@@ -837,7 +860,13 @@ def load_assets():
 def predict_portfolio(df: pd.DataFrame) -> np.ndarray:
     """Score borrowers through XGBoost + isotonic calibration."""
     X = df[FEATURES].copy()
-    X_imp = imputer.transform(X)
+    if imputer is not None:
+        X_imp = imputer.transform(X)
+    else:
+        X_imp_df = X.copy()
+        for f in FEATURES:
+            X_imp_df[f] = X_imp_df[f].fillna(IMPUTER_MEDIANS[f])
+        X_imp = X_imp_df[FEATURES].values
     raw_probs = xgb_model.predict_proba(X_imp)[:, 1]
     if calibrator is not None:
         return np.clip(calibrator.predict(raw_probs), 0.0, 1.0)
@@ -1027,7 +1056,7 @@ def _portfolio_percentile(feature: str, value: float) -> float:
 
 @app.get("/borrowers/{company_id}/explain")
 def get_shap_explanation(company_id: str):
-    if explainer is None or FEATURES is None:
+    if FEATURES is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     feature_df = load_feature_df()
@@ -1036,13 +1065,28 @@ def get_shap_explanation(company_id: str):
         raise HTTPException(status_code=404, detail="Borrower not found")
 
     X = row[FEATURES].copy()
-    X_imp = imputer.transform(X)
-    shap_vals = np.asarray(explainer.shap_values(X_imp))
+    if imputer is not None:
+        X_imp = imputer.transform(X)
+    else:
+        X_imp_df = X.copy()
+        for f in FEATURES:
+            X_imp_df[f] = X_imp_df[f].fillna(IMPUTER_MEDIANS[f])
+        X_imp = X_imp_df[FEATURES].values
+
+    if explainer is not None:
+        shap_vals = np.asarray(explainer.shap_values(X_imp))
+        base_lo = float(np.ravel(explainer.expected_value)[-1])
+    else:
+        import xgboost as xgb
+        d = xgb.DMatrix(X_imp)
+        contribs = xgb_model.get_booster().predict(d, pred_contribs=True)
+        shap_vals = contribs[:, :-1]
+        base_lo = float(contribs[0, -1])
+
     if shap_vals.ndim == 3:
         shap_vals = shap_vals[-1]
     shap_row = shap_vals[0]
 
-    base_lo       = float(np.ravel(explainer.expected_value)[-1])
     base_prob_raw = _sigmoid(base_lo)
     if calibrator is not None:
         base_prob = float(np.clip(calibrator.predict([base_prob_raw])[0], 0.0, 1.0))
@@ -1277,13 +1321,25 @@ def _borrower_context(company_id: str) -> dict:
     if row.empty:
         raise HTTPException(status_code=404, detail="Borrower not found")
     X = row[FEATURES].copy()
-    X_imp = imputer.transform(X)
+    if imputer is not None:
+        X_imp = imputer.transform(X)
+    else:
+        X_imp_df = X.copy()
+        for f in FEATURES:
+            X_imp_df[f] = X_imp_df[f].fillna(IMPUTER_MEDIANS[f])
+        X_imp = X_imp_df[FEATURES].values
     pd_val = float(row.iloc[0]['risk_probability'])
     band = row.iloc[0]['risk_band']
 
     drivers = []
-    if explainer is not None:
-        shap_vals = explainer.shap_values(X_imp)
+    if explainer is not None or xgb_model is not None:
+        if explainer is not None:
+            shap_vals = explainer.shap_values(X_imp)
+        else:
+            import xgboost as xgb
+            d = xgb.DMatrix(X_imp)
+            contribs = xgb_model.get_booster().predict(d, pred_contribs=True)
+            shap_vals = contribs[:, :-1]
         feat_vals = X.iloc[0].to_dict()
         drivers = sorted(
             [{"feature": f, "impact": float(shap_vals[0][i]),

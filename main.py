@@ -834,14 +834,34 @@ def seed_db():
 def load_assets():
     global xgb_model, explainer, imputer, calibrator, FEATURES
     try:
-        xgb_model = joblib.load('models/xgb_model.joblib')
         FEATURES  = joblib.load('models/feature_list.joblib')
         try:
-            calibrator = joblib.load('models/calibrator.joblib')
-            print("Isotonic calibrator loaded.")
-        except FileNotFoundError:
-            calibrator = None
-            print("No calibrator found — using raw XGBoost probabilities.")
+            import xgboost as xgb
+            xgb_model = xgb.Booster()
+            xgb_model.load_model('models/xgb_model.json')
+            print("Native XGBoost booster loaded successfully.")
+        except Exception as e:
+            try:
+                xgb_model = joblib.load('models/xgb_model.joblib')
+                print("XGBClassifier model loaded via joblib.")
+            except Exception as ex:
+                print(f"Failed to load XGBoost model: {ex}")
+                raise
+        try:
+            with open('models/calibrator.json', 'r') as f:
+                cal_data = json.load(f)
+                calibrator = {
+                    'xp': np.array(cal_data['xp']),
+                    'fp': np.array(cal_data['fp'])
+                }
+            print("Native Isotonic calibrator loaded.")
+        except Exception:
+            try:
+                calibrator = joblib.load('models/calibrator.joblib')
+                print("Isotonic calibrator loaded via joblib.")
+            except Exception:
+                calibrator = None
+                print("No calibrator found — using raw XGBoost probabilities.")
         try:
             imputer = joblib.load('models/imputer.joblib')
             print("Scikit-learn imputer loaded.")
@@ -871,9 +891,19 @@ def predict_portfolio(df: pd.DataFrame) -> np.ndarray:
         for f in FEATURES:
             X_imp_df[f] = X_imp_df[f].fillna(IMPUTER_MEDIANS[f])
         X_imp = X_imp_df[FEATURES].values
-    raw_probs = xgb_model.predict_proba(X_imp)[:, 1]
+
+    import xgboost as xgb
+    if isinstance(xgb_model, xgb.Booster):
+        dtrain = xgb.DMatrix(X_imp)
+        raw_probs = xgb_model.predict(dtrain)
+    else:
+        raw_probs = xgb_model.predict_proba(X_imp)[:, 1]
+
     if calibrator is not None:
-        return np.clip(calibrator.predict(raw_probs), 0.0, 1.0)
+        if isinstance(calibrator, dict):
+            return np.clip(np.interp(raw_probs, calibrator['xp'], calibrator['fp']), 0.0, 1.0)
+        else:
+            return np.clip(calibrator.predict(raw_probs), 0.0, 1.0)
     return raw_probs
 
 

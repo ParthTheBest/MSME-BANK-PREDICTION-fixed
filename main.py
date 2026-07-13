@@ -1027,14 +1027,42 @@ def get_borrower_details(company_id: str):
     for m_idx, month in enumerate(months):
         scale = (m_idx / 11)
         monthly_feats = base_features.copy()
-        monthly_feats['revolving_utilization'] = float(np.clip(
-            base_features['revolving_utilization'] * (0.5 + 0.5 * scale), 0.01, 0.99))
-        monthly_feats['gst_compliance_score'] = float(np.clip(
-            base_features['gst_compliance_score'] * (1.1 - 0.2 * scale), 0, 1))
-        monthly_feats['payment_history_score'] = float(np.clip(
-            base_features['payment_history_score'] * (1.05 - 0.15 * scale), 0, 1))
-        monthly_feats['cashflow_stress_ratio'] = float(
-            base_features['cashflow_stress_ratio'] * (0.6 + 0.6 * scale))
+        
+        # Scale revolving features
+        if 'revolving_utilization' in monthly_feats:
+            monthly_feats['revolving_utilization'] = float(np.clip(
+                base_features['revolving_utilization'] * (0.5 + 0.5 * scale), 0.01, 0.99))
+        if 'working_capital_usage' in monthly_feats:
+            monthly_feats['working_capital_usage'] = float(np.clip(
+                base_features['working_capital_usage'] * (0.5 + 0.5 * scale), 0.01, 0.99))
+        
+        # Scale score features (higher is better)
+        if 'gst_compliance_score' in monthly_feats:
+            monthly_feats['gst_compliance_score'] = float(np.clip(
+                base_features['gst_compliance_score'] * (1.1 - 0.2 * scale), 0, 1))
+        if 'payment_history_score' in monthly_feats:
+            monthly_feats['payment_history_score'] = float(np.clip(
+                base_features['payment_history_score'] * (1.05 - 0.15 * scale), 0, 1))
+        if 'income_stability' in monthly_feats:
+            monthly_feats['income_stability'] = float(np.clip(
+                base_features['income_stability'] * (1.1 - 0.2 * scale), 0, 1))
+        if 'revenue_trend_index' in monthly_feats:
+            monthly_feats['revenue_trend_index'] = float(np.clip(
+                base_features['revenue_trend_index'] * (1.1 - 0.2 * scale), 0.2, 2.0))
+        
+        # Scale stress/ratio/risk features (higher is worse)
+        if 'cashflow_stress_ratio' in monthly_feats:
+            monthly_feats['cashflow_stress_ratio'] = float(
+                base_features['cashflow_stress_ratio'] * (0.6 + 0.6 * scale))
+        if 'debt_ratio' in monthly_feats:
+            monthly_feats['debt_ratio'] = float(
+                base_features['debt_ratio'] * (0.7 + 0.5 * scale))
+        if 'supplier_payment_risk' in monthly_feats:
+            monthly_feats['supplier_payment_risk'] = float(
+                base_features['supplier_payment_risk'] * (0.5 + 0.5 * scale))
+        if 'note_stress_index' in monthly_feats:
+            monthly_feats['note_stress_index'] = float(
+                base_features['note_stress_index'] * (0.5 + 0.5 * scale))
 
         m_pd = predict_pd(monthly_feats)
         timeline.append({"month": month, "pd": m_pd})
